@@ -41,6 +41,7 @@ type ServerConfig struct {
 	Port           int
 	Environment    Environment
 	AllowedOrigins []string
+	PublicBaseURL  string
 }
 
 type DatabaseConfig struct {
@@ -129,6 +130,7 @@ func Load() (*Config, error) {
 			Port:           v.GetInt("PORT"),
 			Environment:    env,
 			AllowedOrigins: origins,
+			PublicBaseURL:  v.GetString("PUBLIC_BASE_URL"),
 		},
 		Database: DatabaseConfig{
 			URL:             v.GetString("DATABASE_URL"),

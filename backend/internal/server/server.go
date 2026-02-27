@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -14,10 +15,14 @@ import (
 	deliverymod "github.com/munchies/platform/backend/internal/modules/delivery"
 	hubmod "github.com/munchies/platform/backend/internal/modules/hub"
 	mediamod "github.com/munchies/platform/backend/internal/modules/media"
+	paymentmod "github.com/munchies/platform/backend/internal/modules/payment"
 	restaurantmod "github.com/munchies/platform/backend/internal/modules/restaurant"
 	storefrontmod "github.com/munchies/platform/backend/internal/modules/storefront"
 	tenantmod "github.com/munchies/platform/backend/internal/modules/tenant"
 	usermod "github.com/munchies/platform/backend/internal/modules/user"
+	gatewaypkg "github.com/munchies/platform/backend/internal/platform/payment"
+	"github.com/munchies/platform/backend/internal/platform/payment/aamarpay"
+	"github.com/munchies/platform/backend/internal/platform/payment/bkash"
 	redisclient "github.com/munchies/platform/backend/internal/platform/redis"
 	"github.com/munchies/platform/backend/internal/platform/sms"
 	"github.com/rs/zerolog/log"
@@ -116,6 +121,26 @@ func (s *Server) registerRoutes(deps Deps) {
 
 	mediaHandler := mediamod.NewHandler()
 
+	// Payment gateways
+	paymentGateways := map[sqlc.PaymentMethod]gatewaypkg.Gateway{
+		sqlc.PaymentMethodBkash: bkash.New(bkash.Config{
+			AppKey:    s.cfg.Services.BkashAppKey,
+			AppSecret: s.cfg.Services.BkashAppSecret,
+			BaseURL:   s.cfg.Services.BkashBaseURL,
+		}),
+		sqlc.PaymentMethodAamarpay: aamarpay.New(aamarpay.Config{
+			StoreID:      s.cfg.Services.AamarPayStoreID,
+			SignatureKey: s.cfg.Services.AamarPayAPIKey,
+			BaseURL:      s.cfg.Services.AamarPayBaseURL,
+		}),
+	}
+	paymentSvc := paymentmod.NewService(deps.Queries, paymentGateways)
+	callbackBaseURL := s.cfg.Server.PublicBaseURL
+	if callbackBaseURL == "" {
+		callbackBaseURL = fmt.Sprintf("http://localhost:%d", s.cfg.Server.Port)
+	}
+	paymentHandler := paymentmod.NewHandler(paymentSvc, callbackBaseURL)
+
 	partnerRoles := authmod.RequireRoles(
 		sqlc.UserRoleTenantOwner,
 		sqlc.UserRoleTenantAdmin,
@@ -168,6 +193,20 @@ func (s *Server) registerRoutes(deps Deps) {
 
 		// Delivery charge calculation (public)
 		r.Post("/orders/charges/calculate", deliveryHandler.CalculateCharge)
+
+		// Payment callbacks (no auth required — called by gateways)
+		r.Get("/payments/bkash/callback", paymentHandler.BkashCallback)
+		r.Post("/payments/aamarpay/success", paymentHandler.AamarpaySuccess)
+		r.Post("/payments/aamarpay/fail", paymentHandler.AamarpayFail)
+		r.Post("/payments/aamarpay/cancel", paymentHandler.AamarpayCancel)
+
+		// Payment initiation (authenticated)
+		r.Group(func(r chi.Router) {
+			r.Use(authMiddleware.Authenticate)
+
+			r.Post("/payments/bkash/initiate", paymentHandler.InitiateBkash)
+			r.Post("/payments/aamarpay/initiate", paymentHandler.InitiateAamarpay)
+		})
 
 		// Media upload
 		r.Post("/media/upload", mediaHandler.Upload)
