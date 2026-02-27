@@ -21,48 +21,61 @@ type Querier interface {
 	CheckPromoUserEligibility(ctx context.Context, arg CheckPromoUserEligibilityParams) (int64, error)
 	ClearDefaultAddresses(ctx context.Context, userID uuid.UUID) error
 	ConsumeReservedStock(ctx context.Context, arg ConsumeReservedStockParams) (InventoryItem, error)
-	CountInventoryByRestaurant(ctx context.Context, arg CountInventoryByRestaurantParams) (int64, error)
-	CountLowStock(ctx context.Context, arg CountLowStockParams) (int64, error)
-	CountNotifications(ctx context.Context, userID uuid.UUID) (int64, error)
-	CountOrdersByCustomer(ctx context.Context, arg CountOrdersByCustomerParams) (int64, error)
-	CountOrdersByRestaurant(ctx context.Context, arg CountOrdersByRestaurantParams) (int64, error)
-	CountOrdersByTenant(ctx context.Context, tenantID uuid.UUID) (int64, error)
-	CountPromos(ctx context.Context, tenantID uuid.UUID) (int64, error)
-	CountRecentOTPs(ctx context.Context, arg CountRecentOTPsParams) (int64, error)
-	CountWalletTransactions(ctx context.Context, userID uuid.UUID) (int64, error)
+	// Hub queries
+	CreateHub(ctx context.Context, arg CreateHubParams) (Hub, error)
+	CreateHubArea(ctx context.Context, arg CreateHubAreaParams) (HubCoverageArea, error)
 	CreateAddress(ctx context.Context, arg CreateAddressParams) (UserAddress, error)
+	// Category queries
+	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
 	CreateIdempotencyKey(ctx context.Context, arg CreateIdempotencyKeyParams) (IdempotencyKey, error)
 	CreateInventoryAdjustment(ctx context.Context, arg CreateInventoryAdjustmentParams) (InventoryAdjustment, error)
 	CreateInventoryItem(ctx context.Context, arg CreateInventoryItemParams) (InventoryItem, error)
+	// Modifier group/option queries
+	CreateModifierGroup(ctx context.Context, arg CreateModifierGroupParams) (ProductModifierGroup, error)
+	CreateModifierOption(ctx context.Context, arg CreateModifierOptionParams) (ProductModifierOption, error)
 	CreateOTPVerification(ctx context.Context, arg CreateOTPVerificationParams) (OtpVerification, error)
-	// ============================================================
-	// Orders SQLC Queries
-	// ============================================================
 	CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error)
 	CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (OrderItem, error)
 	CreateOrderPickup(ctx context.Context, arg CreateOrderPickupParams) (OrderPickup, error)
 	CreateOutboxEvent(ctx context.Context, arg CreateOutboxEventParams) (OutboxEvent, error)
-	// ============================================================
-	// Promos SQLC Queries
-	// ============================================================
+	// Product queries
+	CreateProduct(ctx context.Context, arg CreateProductParams) (Product, error)
 	CreatePromo(ctx context.Context, arg CreatePromoParams) (Promo, error)
 	CreatePromoUsage(ctx context.Context, arg CreatePromoUsageParams) (PromoUsage, error)
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
+	// Restaurant queries
+	CreateRestaurant(ctx context.Context, arg CreateRestaurantParams) (Restaurant, error)
 	CreateTenant(ctx context.Context, arg CreateTenantParams) (Tenant, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeactivatePromo(ctx context.Context, arg DeactivatePromoParams) (Promo, error)
+	// Discount queries
+	DeactivateProductDiscount(ctx context.Context, productID uuid.UUID) error
 	DeleteAddress(ctx context.Context, arg DeleteAddressParams) error
+	DeleteCategory(ctx context.Context, arg DeleteCategoryParams) error
+	DeleteHub(ctx context.Context, arg DeleteHubParams) error
+	DeleteHubArea(ctx context.Context, id uuid.UUID) error
+	DeleteModifierGroup(ctx context.Context, id uuid.UUID) error
+	DeleteModifierOption(ctx context.Context, id uuid.UUID) error
+	DeleteModifierOptionsByGroup(ctx context.Context, modifierGroupID uuid.UUID) error
+	DeleteOperatingHours(ctx context.Context, restaurantID uuid.UUID) error
+	DeleteProduct(ctx context.Context, arg DeleteProductParams) error
+	DeleteRestaurant(ctx context.Context, arg DeleteRestaurantParams) error
+	ExpireDiscounts(ctx context.Context) error
 	GenerateOrderNumber(ctx context.Context, arg GenerateOrderNumberParams) (interface{}, error)
+	GetActiveDiscount(ctx context.Context, productID uuid.UUID) (ProductDiscount, error)
 	GetActivePromoByCode(ctx context.Context, arg GetActivePromoByCodeParams) (Promo, error)
 	GetAddressByID(ctx context.Context, arg GetAddressByIDParams) (UserAddress, error)
+	GetCategoryByID(ctx context.Context, arg GetCategoryByIDParams) (Category, error)
+	GetDeliveryZoneConfig(ctx context.Context, tenantID uuid.UUID) (DeliveryZoneConfig, error)
+	GetHubAreaByID(ctx context.Context, id uuid.UUID) (HubCoverageArea, error)
+	GetHubAreaByName(ctx context.Context, arg GetHubAreaByNameParams) (HubCoverageArea, error)
+	GetHubByID(ctx context.Context, arg GetHubByIDParams) (Hub, error)
 	GetIdempotencyKey(ctx context.Context, arg GetIdempotencyKeyParams) (IdempotencyKey, error)
 	GetInventoryByProductAndRestaurant(ctx context.Context, arg GetInventoryByProductAndRestaurantParams) (InventoryItem, error)
 	GetInventoryForUpdate(ctx context.Context, arg GetInventoryForUpdateParams) (InventoryItem, error)
-	// ============================================================
-	// Inventory SQLC Queries
-	// ============================================================
 	GetInventoryItem(ctx context.Context, arg GetInventoryItemParams) (InventoryItem, error)
 	GetLatestOTP(ctx context.Context, arg GetLatestOTPParams) (OtpVerification, error)
+	GetModifierGroupByID(ctx context.Context, id uuid.UUID) (ProductModifierGroup, error)
 	GetNotificationByID(ctx context.Context, arg GetNotificationByIDParams) (Notification, error)
 	GetOrderByID(ctx context.Context, arg GetOrderByIDParams) (Order, error)
 	GetOrderByNumber(ctx context.Context, arg GetOrderByNumberParams) (Order, error)
@@ -72,9 +85,13 @@ type Querier interface {
 	GetOrderPickup(ctx context.Context, arg GetOrderPickupParams) (OrderPickup, error)
 	GetOrderPickupsByOrder(ctx context.Context, orderID uuid.UUID) ([]OrderPickup, error)
 	GetPickupCountByOrder(ctx context.Context, orderID uuid.UUID) (int64, error)
+	GetProductByID(ctx context.Context, arg GetProductByIDParams) (Product, error)
+	GetProductByIDPublic(ctx context.Context, id uuid.UUID) (Product, error)
 	GetPromoByCode(ctx context.Context, arg GetPromoByCodeParams) (Promo, error)
 	GetPromoByID(ctx context.Context, arg GetPromoByIDParams) (Promo, error)
 	GetRefreshTokenByHash(ctx context.Context, tokenHash string) (RefreshToken, error)
+	GetRestaurantByID(ctx context.Context, arg GetRestaurantByIDParams) (Restaurant, error)
+	GetRestaurantBySlug(ctx context.Context, arg GetRestaurantBySlugParams) (Restaurant, error)
 	GetTenantByDomain(ctx context.Context, customDomain sql.NullString) (Tenant, error)
 	GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, error)
 	GetTenantBySlug(ctx context.Context, slug string) (Tenant, error)
@@ -85,10 +102,18 @@ type Querier interface {
 	IncrementOTPAttempts(ctx context.Context, id uuid.UUID) (OtpVerification, error)
 	IncrementPromoUsage(ctx context.Context, arg IncrementPromoUsageParams) error
 	ListAddresses(ctx context.Context, userID uuid.UUID) ([]UserAddress, error)
+	ListAvailableByHubAndArea(ctx context.Context, arg ListAvailableByHubAndAreaParams) ([]Restaurant, error)
+	ListAvailableProductsByRestaurant(ctx context.Context, restaurantID uuid.UUID) ([]Product, error)
+	ListCategoriesByRestaurant(ctx context.Context, arg ListCategoriesByRestaurantParams) ([]Category, error)
+	ListHubAreas(ctx context.Context, hubID uuid.UUID) ([]HubCoverageArea, error)
+	ListHubsByTenant(ctx context.Context, tenantID uuid.UUID) ([]Hub, error)
 	ListInventoryAdjustments(ctx context.Context, arg ListInventoryAdjustmentsParams) ([]InventoryAdjustment, error)
 	ListInventoryByRestaurant(ctx context.Context, arg ListInventoryByRestaurantParams) ([]InventoryItem, error)
 	ListLowStock(ctx context.Context, arg ListLowStockParams) ([]InventoryItem, error)
+	ListModifierGroupsByProduct(ctx context.Context, productID uuid.UUID) ([]ProductModifierGroup, error)
+	ListModifierOptionsByGroup(ctx context.Context, modifierGroupID uuid.UUID) ([]ProductModifierOption, error)
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error)
+	ListOperatingHours(ctx context.Context, restaurantID uuid.UUID) ([]RestaurantOperatingHour, error)
 	ListOrdersByCustomer(ctx context.Context, arg ListOrdersByCustomerParams) ([]Order, error)
 	ListOrdersByRestaurant(ctx context.Context, arg ListOrdersByRestaurantParams) ([]Order, error)
 	ListOrdersByTenant(ctx context.Context, arg ListOrdersByTenantParams) ([]Order, error)
@@ -97,6 +122,8 @@ type Querier interface {
 	ListPromoRestaurantRestrictions(ctx context.Context, promoID uuid.UUID) ([]uuid.UUID, error)
 	ListPromoUserEligibility(ctx context.Context, promoID uuid.UUID) ([]uuid.UUID, error)
 	ListPromos(ctx context.Context, arg ListPromosParams) ([]Promo, error)
+	ListProductsByRestaurant(ctx context.Context, arg ListProductsByRestaurantParams) ([]Product, error)
+	ListRestaurantsByTenant(ctx context.Context, arg ListRestaurantsByTenantParams) ([]Restaurant, error)
 	ListTenants(ctx context.Context, arg ListTenantsParams) ([]Tenant, error)
 	ListTimelineEvents(ctx context.Context, arg ListTimelineEventsParams) ([]OrderTimelineEvent, error)
 	ListWalletTransactions(ctx context.Context, arg ListWalletTransactionsParams) ([]WalletTransaction, error)
@@ -116,13 +143,38 @@ type Querier interface {
 	TransitionOrderStatus(ctx context.Context, arg TransitionOrderStatusParams) (Order, error)
 	TransitionPickupStatus(ctx context.Context, arg TransitionPickupStatusParams) (OrderPickup, error)
 	UpdateAddress(ctx context.Context, arg UpdateAddressParams) (UserAddress, error)
+	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error)
+	UpdateCategorySortOrder(ctx context.Context, arg UpdateCategorySortOrderParams) error
+	UpdateHub(ctx context.Context, arg UpdateHubParams) (Hub, error)
+	UpdateHubArea(ctx context.Context, arg UpdateHubAreaParams) (HubCoverageArea, error)
 	UpdateIdempotencyKeyResponse(ctx context.Context, arg UpdateIdempotencyKeyResponseParams) error
+	UpdateModifierGroup(ctx context.Context, arg UpdateModifierGroupParams) (ProductModifierGroup, error)
+	UpdateModifierOption(ctx context.Context, arg UpdateModifierOptionParams) (ProductModifierOption, error)
 	UpdateOrderPaymentStatus(ctx context.Context, arg UpdateOrderPaymentStatusParams) (Order, error)
+	UpdateProduct(ctx context.Context, arg UpdateProductParams) (Product, error)
+	UpdateProductAvailability(ctx context.Context, arg UpdateProductAvailabilityParams) (Product, error)
+	UpdateProductHasModifiers(ctx context.Context, arg UpdateProductHasModifiersParams) error
 	UpdatePromo(ctx context.Context, arg UpdatePromoParams) (Promo, error)
+	UpdateRestaurant(ctx context.Context, arg UpdateRestaurantParams) (Restaurant, error)
+	UpdateRestaurantAvailability(ctx context.Context, arg UpdateRestaurantAvailabilityParams) (Restaurant, error)
 	UpdateTenant(ctx context.Context, arg UpdateTenantParams) (Tenant, error)
 	UpdateTenantStatus(ctx context.Context, arg UpdateTenantStatusParams) (Tenant, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
+	UpsertDeliveryZoneConfig(ctx context.Context, arg UpsertDeliveryZoneConfigParams) (DeliveryZoneConfig, error)
+	UpsertOperatingHour(ctx context.Context, arg UpsertOperatingHourParams) (RestaurantOperatingHour, error)
+	UpsertProductDiscount(ctx context.Context, arg UpsertProductDiscountParams) (ProductDiscount, error)
+	CountInventoryByRestaurant(ctx context.Context, arg CountInventoryByRestaurantParams) (int64, error)
+	CountLowStock(ctx context.Context, arg CountLowStockParams) (int64, error)
+	CountNotifications(ctx context.Context, userID uuid.UUID) (int64, error)
+	CountOrdersByCustomer(ctx context.Context, arg CountOrdersByCustomerParams) (int64, error)
+	CountOrdersByRestaurant(ctx context.Context, arg CountOrdersByRestaurantParams) (int64, error)
+	CountOrdersByTenant(ctx context.Context, tenantID uuid.UUID) (int64, error)
+	CountProductsByRestaurant(ctx context.Context, arg CountProductsByRestaurantParams) (int64, error)
+	CountPromos(ctx context.Context, tenantID uuid.UUID) (int64, error)
+	CountRecentOTPs(ctx context.Context, arg CountRecentOTPsParams) (int64, error)
+	CountRestaurantsByTenant(ctx context.Context, tenantID uuid.UUID) (int64, error)
+	CountWalletTransactions(ctx context.Context, userID uuid.UUID) (int64, error)
 }
 
 var _ Querier = (*Queries)(nil)
