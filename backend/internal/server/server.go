@@ -1,8 +1,10 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
@@ -37,8 +39,9 @@ type Deps struct {
 
 // Server holds the HTTP router and dependencies.
 type Server struct {
-	router chi.Router
-	cfg    *config.Config
+	router           chi.Router
+	cfg              *config.Config
+	reconciliationJob *paymentmod.ReconciliationJob
 }
 
 // New creates a new Server with all routes and middleware configured.
@@ -140,6 +143,9 @@ func (s *Server) registerRoutes(deps Deps) {
 		callbackBaseURL = fmt.Sprintf("http://localhost:%d", s.cfg.Server.Port)
 	}
 	paymentHandler := paymentmod.NewHandler(paymentSvc, callbackBaseURL)
+
+	// Reconciliation job
+	s.reconciliationJob = paymentmod.NewReconciliationJob(deps.Queries, paymentGateways)
 
 	partnerRoles := authmod.RequireRoles(
 		sqlc.UserRoleTenantOwner,
@@ -261,6 +267,9 @@ func (s *Server) registerRoutes(deps Deps) {
 
 		// Menu duplication
 		r.Post("/restaurants/{id}/menu/duplicate", catalogHandler.DuplicateMenu)
+
+		// Order refund
+		r.Post("/orders/{id}/refund", paymentHandler.ProcessRefund)
 	})
 }
 
@@ -276,5 +285,13 @@ func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"status":"ready"}`))
+}
+
+// StartBackgroundJobs launches background goroutines such as payment reconciliation.
+// The provided context controls the lifecycle of all background jobs.
+func (s *Server) StartBackgroundJobs(ctx context.Context) {
+	if s.reconciliationJob != nil {
+		go s.reconciliationJob.StartReconciliation(ctx, 5*time.Minute)
+	}
 }
 

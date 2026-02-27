@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/munchies/platform/backend/internal/db/sqlc"
 	"github.com/munchies/platform/backend/internal/modules/auth"
@@ -205,4 +206,55 @@ func toAppError(err error) *apperror.AppError {
 		return e
 	}
 	return apperror.Internal("unexpected error", err)
+}
+
+// ProcessRefund handles POST /partner/orders/{id}/refund
+func (h *Handler) ProcessRefund(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFromContext(r.Context())
+	if u == nil {
+		respond.Error(w, apperror.Unauthorized("authentication required"))
+		return
+	}
+	t := tenant.FromContext(r.Context())
+	if t == nil {
+		respond.Error(w, apperror.NotFound("tenant"))
+		return
+	}
+
+	orderID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		respond.Error(w, apperror.BadRequest("invalid order ID"))
+		return
+	}
+
+	var req struct {
+		Amount float64 `json:"amount"`
+		Reason string  `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.Error(w, apperror.BadRequest("invalid request body"))
+		return
+	}
+	if req.Amount <= 0 {
+		respond.Error(w, apperror.BadRequest("amount must be positive"))
+		return
+	}
+	if req.Reason == "" {
+		respond.Error(w, apperror.BadRequest("reason is required"))
+		return
+	}
+
+	refund, err := h.svc.ProcessRefund(r.Context(), orderID, t.ID, req.Amount, req.Reason, u.ID)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+
+	respond.JSON(w, http.StatusOK, map[string]interface{}{
+		"refund_id": refund.ID,
+		"order_id":  refund.OrderID,
+		"amount":    req.Amount,
+		"status":    string(refund.Status),
+		"reason":    refund.Reason,
+	})
 }

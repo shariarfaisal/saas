@@ -43,6 +43,8 @@ type Querier interface {
 	CreateTimelineEvent(ctx context.Context, arg CreateTimelineEventParams) (OrderTimelineEvent, error)
 	CreateTransaction(ctx context.Context, arg CreateTransactionParams) (PaymentTransaction, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	CreateWalletTransaction(ctx context.Context, arg CreateWalletTransactionParams) (WalletTransaction, error)
+	CreditUserWallet(ctx context.Context, arg CreditUserWalletParams) error
 	DeactivateProductDiscount(ctx context.Context, productID uuid.UUID) error
 	DeleteAddress(ctx context.Context, arg DeleteAddressParams) error
 	DeleteCategory(ctx context.Context, arg DeleteCategoryParams) error
