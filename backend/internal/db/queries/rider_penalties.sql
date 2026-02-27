@@ -14,7 +14,7 @@ LIMIT $3 OFFSET $4;
 
 -- name: UpdatePenaltyStatus :one
 UPDATE rider_penalties SET
-  status = $2,
+  status = sqlc.arg(status),
   cleared_at = COALESCE(sqlc.narg(cleared_at), cleared_at),
   cleared_by = COALESCE(sqlc.narg(cleared_by), cleared_by)
 WHERE id = sqlc.arg(id) AND tenant_id = sqlc.arg(tenant_id)
