@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 const SESSION_COOKIE = "munchies_customer_token";
+const SESSION_MAX_AGE_SECONDS = 60 * 60;
 
 export async function POST(req: Request) {
   const { token } = (await req.json()) as { token?: string };
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
     sameSite: "lax",
     secure: true,
     path: "/",
-    maxAge: 60 * 60,
+    maxAge: SESSION_MAX_AGE_SECONDS,
   });
 
   return NextResponse.json({ ok: true });

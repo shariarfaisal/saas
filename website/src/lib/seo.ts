@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { PLATFORM_DOMAIN } from "@/lib/site-config";
 import type { TenantConfig } from "@/lib/tenant";
 
 type SeoConfig = {
@@ -9,8 +10,6 @@ type SeoConfig = {
   canonical: string;
   openGraph: NonNullable<Metadata["openGraph"]>;
 };
-
-const PLATFORM_DOMAIN = "platform.com";
 
 export function buildSeoConfig(tenant: TenantConfig): SeoConfig {
   const canonical = `https://${tenant.slug}.${PLATFORM_DOMAIN}`;
