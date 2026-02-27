@@ -12,17 +12,25 @@ import (
 	"github.com/munchies/platform/backend/internal/config"
 	"github.com/munchies/platform/backend/internal/db/sqlc"
 	"github.com/munchies/platform/backend/internal/middleware"
+	analyticsmod "github.com/munchies/platform/backend/internal/modules/analytics"
 	authmod "github.com/munchies/platform/backend/internal/modules/auth"
 	catalogmod "github.com/munchies/platform/backend/internal/modules/catalog"
+	contentmod "github.com/munchies/platform/backend/internal/modules/content"
 	deliverymod "github.com/munchies/platform/backend/internal/modules/delivery"
+	financemod "github.com/munchies/platform/backend/internal/modules/finance"
 	hubmod "github.com/munchies/platform/backend/internal/modules/hub"
+	issuemod "github.com/munchies/platform/backend/internal/modules/issue"
 	mediamod "github.com/munchies/platform/backend/internal/modules/media"
 	paymentmod "github.com/munchies/platform/backend/internal/modules/payment"
+	ratingmod "github.com/munchies/platform/backend/internal/modules/rating"
 	restaurantmod "github.com/munchies/platform/backend/internal/modules/restaurant"
 	ridermod "github.com/munchies/platform/backend/internal/modules/rider"
+	searchmod "github.com/munchies/platform/backend/internal/modules/search"
+	ssemod "github.com/munchies/platform/backend/internal/modules/sse"
 	storefrontmod "github.com/munchies/platform/backend/internal/modules/storefront"
 	tenantmod "github.com/munchies/platform/backend/internal/modules/tenant"
 	usermod "github.com/munchies/platform/backend/internal/modules/user"
+	workermod "github.com/munchies/platform/backend/internal/modules/worker"
 	gatewaypkg "github.com/munchies/platform/backend/internal/platform/payment"
 	"github.com/munchies/platform/backend/internal/platform/payment/aamarpay"
 	"github.com/munchies/platform/backend/internal/platform/payment/bkash"
@@ -40,9 +48,10 @@ type Deps struct {
 
 // Server holds the HTTP router and dependencies.
 type Server struct {
-	router           chi.Router
-	cfg              *config.Config
+	router            chi.Router
+	cfg               *config.Config
 	reconciliationJob *paymentmod.ReconciliationJob
+	worker            *workermod.Worker
 }
 
 // New creates a new Server with all routes and middleware configured.
@@ -153,6 +162,40 @@ func (s *Server) registerRoutes(deps Deps) {
 	// Reconciliation job
 	s.reconciliationJob = paymentmod.NewReconciliationJob(deps.Queries, paymentGateways)
 
+	// Finance module
+	financeSvc := financemod.NewService(deps.Queries)
+	financeHandler := financemod.NewHandler(financeSvc)
+
+	// Issue module
+	issueSvc := issuemod.NewService(deps.Queries)
+	issueHandler := issuemod.NewHandler(issueSvc)
+
+	// Rating module
+	ratingSvc := ratingmod.NewService(deps.Queries)
+	ratingHandler := ratingmod.NewHandler(ratingSvc)
+
+	// Search module
+	searchSvc := searchmod.NewService(deps.Queries)
+	searchHandler := searchmod.NewHandler(searchSvc)
+
+	// Content module
+	contentSvc := contentmod.NewService(deps.Queries)
+	contentHandler := contentmod.NewHandler(contentSvc)
+
+	// Analytics module
+	analyticsSvc := analyticsmod.NewService(deps.Queries)
+	analyticsHandler := analyticsmod.NewHandler(analyticsSvc)
+
+	// SSE module
+	sseHandler := ssemod.NewHandler(deps.Redis)
+
+	// Background worker
+	s.worker = workermod.NewWorker(deps.Queries, deps.Redis)
+
+	// Ledger service (seed platform accounts)
+	ledgerSvc := financemod.NewLedgerService(deps.Queries)
+	_ = ledgerSvc
+
 	partnerRoles := authmod.RequireRoles(
 		sqlc.UserRoleTenantOwner,
 		sqlc.UserRoleTenantAdmin,
@@ -194,14 +237,31 @@ func (s *Server) registerRoutes(deps Deps) {
 				r.Get("/notifications", userHandler.ListNotifications)
 				r.Patch("/notifications/{id}/read", userHandler.MarkNotificationRead)
 			})
+
+			// Order issues (customer create)
+			r.Post("/orders/{id}/issue", issueHandler.CreateIssue)
+
+			// Ratings (customer rate delivered order)
+			r.Post("/orders/{id}/rate", ratingHandler.RateOrder)
+
+			// SSE events
+			r.Get("/events/subscribe", sseHandler.Subscribe)
 		})
 
 		// Public storefront routes
 		r.Get("/storefront/config", storefrontHandler.GetConfig)
 		r.Get("/storefront/areas", storefrontHandler.ListAreas)
 		r.Get("/storefront/restaurants", storefrontHandler.ListRestaurants)
+		r.Get("/storefront/banners", contentHandler.StorefrontBanners)
+		r.Get("/storefront/stories", contentHandler.StorefrontStories)
+		r.Get("/storefront/sections", contentHandler.StorefrontSections)
 		r.Get("/restaurants/{slug}", storefrontHandler.GetRestaurant)
+		r.Get("/restaurants/{id}/ratings", ratingHandler.ListReviews)
 		r.Get("/products/{id}", storefrontHandler.GetProduct)
+
+		// Search routes (public)
+		r.Get("/search", searchHandler.Search)
+		r.Get("/search/autocomplete", searchHandler.Autocomplete)
 
 		// Delivery charge calculation (public)
 		r.Post("/orders/charges/calculate", deliveryHandler.CalculateCharge)
@@ -315,6 +375,64 @@ func (s *Server) registerRoutes(deps Deps) {
 		r.Get("/riders/{id}/penalties", riderHandler.ListPenalties)
 		r.Post("/riders/{id}/penalties", riderHandler.CreatePenalty)
 		r.Patch("/riders/{id}/penalties/{penalty_id}", riderHandler.UpdatePenalty)
+
+		// Finance management (partner)
+		r.Get("/finance/summary", financeHandler.GetSummary)
+		r.Get("/finance/invoices", financeHandler.ListInvoices)
+		r.Get("/finance/invoices/{id}", financeHandler.GetInvoice)
+		r.Get("/finance/invoices/{id}/pdf", financeHandler.GetInvoicePDF)
+
+		// Issue management (partner)
+		r.Get("/issues", issueHandler.ListIssues)
+		r.Get("/issues/{id}", issueHandler.GetIssue)
+		r.Post("/issues/{id}/message", issueHandler.AddMessage)
+		r.Get("/issues/{id}/messages", issueHandler.ListMessages)
+
+		// Review management (partner respond)
+		r.Post("/reviews/{id}/respond", ratingHandler.RespondToReview)
+
+		// Content management (partner)
+		r.Get("/content/banners", contentHandler.ListBanners)
+		r.Post("/content/banners", contentHandler.CreateBanner)
+		r.Put("/content/banners/{id}", contentHandler.UpdateBanner)
+		r.Delete("/content/banners/{id}", contentHandler.DeleteBanner)
+		r.Get("/content/stories", contentHandler.ListStories)
+		r.Post("/content/stories", contentHandler.CreateStory)
+		r.Delete("/content/stories/{id}", contentHandler.DeleteStory)
+		r.Get("/content/sections", contentHandler.ListSections)
+		r.Put("/content/sections/{id}", contentHandler.UpdateSection)
+
+		// Dashboard & analytics (partner)
+		r.Get("/dashboard", analyticsHandler.GetDashboard)
+		r.Get("/reports/sales", analyticsHandler.GetSalesReport)
+		r.Get("/reports/products/top-selling", analyticsHandler.GetTopProducts)
+		r.Get("/reports/orders/breakdown", analyticsHandler.GetOrderBreakdown)
+		r.Get("/reports/peak-hours", analyticsHandler.GetPeakHours)
+		r.Get("/reports/riders", analyticsHandler.GetRiderAnalytics)
+		r.Get("/reports/searches", searchHandler.TopSearchTerms)
+	})
+
+	// Admin routes (authenticated, admin role required)
+	r.Route("/admin", func(r chi.Router) {
+		r.Use(tenantmod.NewResolver(tenantRepo, deps.Redis).Middleware)
+		r.Use(authMiddleware.Authenticate)
+		r.Use(authmod.RequireRoles(sqlc.UserRolePlatformAdmin, sqlc.UserRolePlatformFinance))
+
+		// Invoice management (admin)
+		r.Post("/finance/invoices/generate", financeHandler.GenerateInvoice)
+		r.Patch("/finance/invoices/{id}/finalize", financeHandler.FinalizeInvoice)
+		r.Patch("/finance/invoices/{id}/mark-paid", financeHandler.MarkInvoicePaid)
+
+		// Issue resolution (admin)
+		r.Patch("/issues/{id}/resolve", issueHandler.ResolveIssue)
+		r.Patch("/issues/{id}/refund/approve", issueHandler.ApproveRefund)
+		r.Patch("/issues/{id}/refund/reject", issueHandler.RejectRefund)
+
+		// Analytics (admin — cross-tenant)
+		r.Get("/analytics/overview", analyticsHandler.AdminOverview)
+		r.Get("/analytics/revenue", analyticsHandler.AdminRevenue)
+		r.Get("/analytics/orders", analyticsHandler.AdminOrderVolume)
+		r.Get("/analytics/tenants/{id}", analyticsHandler.AdminTenantAnalytics)
 	})
 }
 
@@ -337,6 +455,9 @@ func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 func (s *Server) StartBackgroundJobs(ctx context.Context) {
 	if s.reconciliationJob != nil {
 		go s.reconciliationJob.StartReconciliation(ctx, 5*time.Minute)
+	}
+	if s.worker != nil {
+		go s.worker.Start(ctx)
 	}
 }
 
