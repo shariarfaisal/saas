@@ -230,6 +230,17 @@ func (s *Server) registerRoutes(deps Deps) {
 			r.Post("/attendance/checkin", riderHandler.CheckIn)
 			r.Post("/attendance/checkout", riderHandler.CheckOut)
 			r.Patch("/availability", riderHandler.UpdateAvailability)
+
+			// Order flow
+			r.Get("/orders/active", riderHandler.ListActiveOrders)
+			r.Patch("/orders/{id}/accept", riderHandler.AcceptOrder)
+			r.Patch("/orders/{id}/picked/{restaurant_id}", riderHandler.MarkPickupPicked)
+			r.Patch("/orders/{id}/delivered", riderHandler.MarkDelivered)
+			r.Patch("/orders/{id}/issue", riderHandler.ReportIssue)
+
+			// Earnings & history
+			r.Get("/earnings", riderHandler.ListEarnings)
+			r.Get("/history", riderHandler.ListDeliveryHistory)
 		})
 
 		// Rider WebSocket (custom auth via query param)
@@ -289,13 +300,21 @@ func (s *Server) registerRoutes(deps Deps) {
 		// Order refund
 		r.Post("/orders/{id}/refund", paymentHandler.ProcessRefund)
 
+		// Order rider assignment
+		r.Post("/orders/{id}/assign-rider", riderHandler.ManualAssignRider)
+
 		// Rider management
 		r.Get("/riders", riderHandler.ListRiders)
 		r.Post("/riders", riderHandler.CreateRider)
 		r.Get("/riders/attendance", riderHandler.ListAttendance)
+		r.Get("/riders/tracking", riderHandler.ListRiderTracking)
 		r.Get("/riders/{id}", riderHandler.GetRider)
 		r.Put("/riders/{id}", riderHandler.UpdateRider)
 		r.Delete("/riders/{id}", riderHandler.DeleteRider)
+		r.Get("/riders/{id}/travel-log", riderHandler.GetTravelLog)
+		r.Get("/riders/{id}/penalties", riderHandler.ListPenalties)
+		r.Post("/riders/{id}/penalties", riderHandler.CreatePenalty)
+		r.Patch("/riders/{id}/penalties/{penalty_id}", riderHandler.UpdatePenalty)
 	})
 }
 

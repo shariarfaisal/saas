@@ -20,6 +20,26 @@ WHERE tenant_id = $1 AND payment_status = 'unpaid' AND status = 'pending'
 ORDER BY created_at ASC
 LIMIT $2;
 
+-- name: ListActiveOrdersByRider :many
+SELECT * FROM orders
+WHERE rider_id = $1 AND tenant_id = $2
+  AND status IN ('confirmed', 'preparing', 'ready', 'picked')
+  AND deleted_at IS NULL
+ORDER BY created_at DESC;
+
+-- name: ListDeliveredOrdersByRider :many
+SELECT * FROM orders
+WHERE rider_id = $1 AND tenant_id = $2
+  AND status = 'delivered'
+  AND deleted_at IS NULL
+ORDER BY delivered_at DESC
+LIMIT $3 OFFSET $4;
+
+-- name: AssignRiderToOrder :one
+UPDATE orders SET rider_id = $3
+WHERE id = $1 AND tenant_id = $2
+RETURNING *;
+
 -- name: GetOrderForReconciliation :many
 SELECT * FROM orders
 WHERE payment_status = 'unpaid' AND status IN ('pending', 'created')

@@ -326,6 +326,421 @@ func (h *Handler) UpdateAvailability(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ---------- Rider API – Order Flow ----------
+
+// ListActiveOrders handles GET /api/v1/rider/orders/active
+func (h *Handler) ListActiveOrders(w http.ResponseWriter, r *http.Request) {
+	u, t, appErr := requireRider(r)
+	if appErr != nil {
+		respond.Error(w, appErr)
+		return
+	}
+
+	rider, err := h.svc.GetRiderByUserID(r.Context(), u.ID, t.ID)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+
+	orders, err := h.svc.ListActiveOrders(r.Context(), rider.ID, t.ID)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+
+	respond.JSON(w, http.StatusOK, map[string]interface{}{"orders": orders})
+}
+
+// AcceptOrder handles PATCH /api/v1/rider/orders/{id}/accept
+func (h *Handler) AcceptOrder(w http.ResponseWriter, r *http.Request) {
+	u, t, appErr := requireRider(r)
+	if appErr != nil {
+		respond.Error(w, appErr)
+		return
+	}
+
+	orderID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		respond.Error(w, apperror.BadRequest("invalid order ID"))
+		return
+	}
+
+	rider, err := h.svc.GetRiderByUserID(r.Context(), u.ID, t.ID)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+
+	order, err := h.svc.AcceptOrder(r.Context(), orderID, rider.ID, t.ID)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+
+	respond.JSON(w, http.StatusOK, order)
+}
+
+// MarkPickupPicked handles PATCH /api/v1/rider/orders/{id}/picked/{restaurant_id}
+func (h *Handler) MarkPickupPicked(w http.ResponseWriter, r *http.Request) {
+	u, t, appErr := requireRider(r)
+	if appErr != nil {
+		respond.Error(w, appErr)
+		return
+	}
+
+	orderID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		respond.Error(w, apperror.BadRequest("invalid order ID"))
+		return
+	}
+	restaurantID, err := uuid.Parse(chi.URLParam(r, "restaurant_id"))
+	if err != nil {
+		respond.Error(w, apperror.BadRequest("invalid restaurant ID"))
+		return
+	}
+
+	rider, err := h.svc.GetRiderByUserID(r.Context(), u.ID, t.ID)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+
+	pickup, err := h.svc.MarkPickupPicked(r.Context(), orderID, restaurantID, rider.ID, t.ID)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+
+	respond.JSON(w, http.StatusOK, pickup)
+}
+
+// MarkDelivered handles PATCH /api/v1/rider/orders/{id}/delivered
+func (h *Handler) MarkDelivered(w http.ResponseWriter, r *http.Request) {
+	u, t, appErr := requireRider(r)
+	if appErr != nil {
+		respond.Error(w, appErr)
+		return
+	}
+
+	orderID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		respond.Error(w, apperror.BadRequest("invalid order ID"))
+		return
+	}
+
+	rider, err := h.svc.GetRiderByUserID(r.Context(), u.ID, t.ID)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+
+	order, err := h.svc.MarkDelivered(r.Context(), orderID, rider.ID, t.ID)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+
+	respond.JSON(w, http.StatusOK, order)
+}
+
+// ReportIssue handles PATCH /api/v1/rider/orders/{id}/issue
+func (h *Handler) ReportIssue(w http.ResponseWriter, r *http.Request) {
+	u, t, appErr := requireRider(r)
+	if appErr != nil {
+		respond.Error(w, appErr)
+		return
+	}
+
+	orderID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		respond.Error(w, apperror.BadRequest("invalid order ID"))
+		return
+	}
+
+	var req struct {
+		IssueType string `json:"issue_type"`
+		Details   string `json:"details"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.Error(w, apperror.BadRequest("invalid request body"))
+		return
+	}
+	if req.IssueType == "" || req.Details == "" {
+		respond.Error(w, apperror.BadRequest("issue_type and details are required"))
+		return
+	}
+
+	rider, err := h.svc.GetRiderByUserID(r.Context(), u.ID, t.ID)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+
+	issue, err := h.svc.ReportIssue(r.Context(), orderID, rider.ID, t.ID, req.IssueType, req.Details)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+
+	respond.JSON(w, http.StatusCreated, issue)
+}
+
+// ---------- Rider API – Earnings & History ----------
+
+// ListEarnings handles GET /api/v1/rider/earnings
+func (h *Handler) ListEarnings(w http.ResponseWriter, r *http.Request) {
+	u, t, appErr := requireRider(r)
+	if appErr != nil {
+		respond.Error(w, appErr)
+		return
+	}
+
+	rider, err := h.svc.GetRiderByUserID(r.Context(), u.ID, t.ID)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+
+	limit, offset := parsePagination(r)
+	earnings, err := h.svc.ListEarnings(r.Context(), rider.ID, limit, offset)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+
+	respond.JSON(w, http.StatusOK, map[string]interface{}{
+		"earnings": earnings,
+		"limit":    limit,
+		"offset":   offset,
+	})
+}
+
+// ListDeliveryHistory handles GET /api/v1/rider/history
+func (h *Handler) ListDeliveryHistory(w http.ResponseWriter, r *http.Request) {
+	u, t, appErr := requireRider(r)
+	if appErr != nil {
+		respond.Error(w, appErr)
+		return
+	}
+
+	rider, err := h.svc.GetRiderByUserID(r.Context(), u.ID, t.ID)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+
+	limit, offset := parsePagination(r)
+	orders, err := h.svc.ListDeliveryHistory(r.Context(), rider.ID, t.ID, limit, offset)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+
+	respond.JSON(w, http.StatusOK, map[string]interface{}{
+		"orders": orders,
+		"limit":  limit,
+		"offset": offset,
+	})
+}
+
+// ---------- Partner API – Rider Management ----------
+
+// ManualAssignRider handles POST /partner/orders/{id}/assign-rider
+func (h *Handler) ManualAssignRider(w http.ResponseWriter, r *http.Request) {
+	t := tenant.FromContext(r.Context())
+	if t == nil {
+		respond.Error(w, apperror.NotFound("tenant"))
+		return
+	}
+	u := auth.UserFromContext(r.Context())
+	if u == nil {
+		respond.Error(w, apperror.Unauthorized("authentication required"))
+		return
+	}
+
+	orderID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		respond.Error(w, apperror.BadRequest("invalid order ID"))
+		return
+	}
+
+	var req struct {
+		RiderID uuid.UUID `json:"rider_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.Error(w, apperror.BadRequest("invalid request body"))
+		return
+	}
+	if req.RiderID == uuid.Nil {
+		respond.Error(w, apperror.BadRequest("rider_id is required"))
+		return
+	}
+
+	order, err := h.svc.ManualAssignRider(r.Context(), orderID, req.RiderID, t.ID, u.ID)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+
+	respond.JSON(w, http.StatusOK, order)
+}
+
+// GetTravelLog handles GET /partner/riders/{id}/travel-log
+func (h *Handler) GetTravelLog(w http.ResponseWriter, r *http.Request) {
+	t := tenant.FromContext(r.Context())
+	if t == nil {
+		respond.Error(w, apperror.NotFound("tenant"))
+		return
+	}
+
+	riderID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		respond.Error(w, apperror.BadRequest("invalid rider ID"))
+		return
+	}
+
+	since := time.Now().Add(-24 * time.Hour)
+	if v := r.URL.Query().Get("since"); v != "" {
+		parsed, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			respond.Error(w, apperror.BadRequest("invalid since format, use ISO8601"))
+			return
+		}
+		since = parsed
+	}
+
+	history, err := h.svc.ListLocationHistory(r.Context(), riderID, since, 1000)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+
+	respond.JSON(w, http.StatusOK, map[string]interface{}{"travel_log": history})
+}
+
+// ListRiderTracking handles GET /partner/riders/tracking
+func (h *Handler) ListRiderTracking(w http.ResponseWriter, r *http.Request) {
+	t := tenant.FromContext(r.Context())
+	if t == nil {
+		respond.Error(w, apperror.NotFound("tenant"))
+		return
+	}
+
+	locations, err := h.svc.ListRiderLocations(r.Context(), t.ID)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+
+	respond.JSON(w, http.StatusOK, map[string]interface{}{"locations": locations})
+}
+
+// ListPenalties handles GET /partner/riders/{id}/penalties
+func (h *Handler) ListPenalties(w http.ResponseWriter, r *http.Request) {
+	t := tenant.FromContext(r.Context())
+	if t == nil {
+		respond.Error(w, apperror.NotFound("tenant"))
+		return
+	}
+
+	riderID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		respond.Error(w, apperror.BadRequest("invalid rider ID"))
+		return
+	}
+
+	limit, offset := parsePagination(r)
+	penalties, err := h.svc.ListPenalties(r.Context(), riderID, t.ID, limit, offset)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+
+	respond.JSON(w, http.StatusOK, map[string]interface{}{
+		"penalties": penalties,
+		"limit":     limit,
+		"offset":    offset,
+	})
+}
+
+// CreatePenalty handles POST /partner/riders/{id}/penalties
+func (h *Handler) CreatePenalty(w http.ResponseWriter, r *http.Request) {
+	t := tenant.FromContext(r.Context())
+	if t == nil {
+		respond.Error(w, apperror.NotFound("tenant"))
+		return
+	}
+
+	riderID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		respond.Error(w, apperror.BadRequest("invalid rider ID"))
+		return
+	}
+
+	var req struct {
+		Reason  string     `json:"reason"`
+		Amount  int64      `json:"amount"`
+		OrderID *uuid.UUID `json:"order_id"`
+		IssueID *uuid.UUID `json:"issue_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.Error(w, apperror.BadRequest("invalid request body"))
+		return
+	}
+	if req.Reason == "" {
+		respond.Error(w, apperror.BadRequest("reason is required"))
+		return
+	}
+
+	penalty, err := h.svc.CreatePenalty(r.Context(), riderID, t.ID, req.Reason, req.Amount, req.OrderID, req.IssueID)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+
+	respond.JSON(w, http.StatusCreated, penalty)
+}
+
+// UpdatePenalty handles PATCH /partner/riders/{id}/penalties/{penalty_id}
+func (h *Handler) UpdatePenalty(w http.ResponseWriter, r *http.Request) {
+	t := tenant.FromContext(r.Context())
+	if t == nil {
+		respond.Error(w, apperror.NotFound("tenant"))
+		return
+	}
+	u := auth.UserFromContext(r.Context())
+	if u == nil {
+		respond.Error(w, apperror.Unauthorized("authentication required"))
+		return
+	}
+
+	penaltyID, err := uuid.Parse(chi.URLParam(r, "penalty_id"))
+	if err != nil {
+		respond.Error(w, apperror.BadRequest("invalid penalty ID"))
+		return
+	}
+
+	var req struct {
+		Status string `json:"status"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.Error(w, apperror.BadRequest("invalid request body"))
+		return
+	}
+	if req.Status == "" {
+		respond.Error(w, apperror.BadRequest("status is required"))
+		return
+	}
+
+	penalty, err := h.svc.UpdatePenalty(r.Context(), penaltyID, t.ID, req.Status, &u.ID)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+
+	respond.JSON(w, http.StatusOK, penalty)
+}
+
 // ---------- Helpers ----------
 
 func parsePagination(r *http.Request) (limit, offset int32) {

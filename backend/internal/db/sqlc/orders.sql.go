@@ -10,7 +10,75 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const assignRiderToOrder = `-- name: AssignRiderToOrder :one
+UPDATE orders SET rider_id = $3
+WHERE id = $1 AND tenant_id = $2
+RETURNING id, tenant_id, order_number, customer_id, rider_id, hub_id, status, payment_status, payment_method, platform, delivery_address_id, delivery_address, delivery_recipient_name, delivery_recipient_phone, delivery_area, delivery_geo_lat, delivery_geo_lng, subtotal, item_discount_total, promo_discount_total, vat_total, delivery_charge, service_fee, total_amount, promo_id, promo_code, promo_snapshot, is_priority, is_reorder, customer_note, rider_note, internal_note, cancellation_reason, cancelled_by, rejection_reason, rejected_by, auto_confirm_at, estimated_delivery_minutes, confirmed_at, preparing_at, ready_at, picked_at, delivered_at, cancelled_at, created_at, updated_at, deleted_at
+`
+
+type AssignRiderToOrderParams struct {
+	ID       uuid.UUID   `json:"id"`
+	TenantID uuid.UUID   `json:"tenant_id"`
+	RiderID  pgtype.UUID `json:"rider_id"`
+}
+
+func (q *Queries) AssignRiderToOrder(ctx context.Context, arg AssignRiderToOrderParams) (Order, error) {
+	row := q.db.QueryRow(ctx, assignRiderToOrder, arg.ID, arg.TenantID, arg.RiderID)
+	var i Order
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.OrderNumber,
+		&i.CustomerID,
+		&i.RiderID,
+		&i.HubID,
+		&i.Status,
+		&i.PaymentStatus,
+		&i.PaymentMethod,
+		&i.Platform,
+		&i.DeliveryAddressID,
+		&i.DeliveryAddress,
+		&i.DeliveryRecipientName,
+		&i.DeliveryRecipientPhone,
+		&i.DeliveryArea,
+		&i.DeliveryGeoLat,
+		&i.DeliveryGeoLng,
+		&i.Subtotal,
+		&i.ItemDiscountTotal,
+		&i.PromoDiscountTotal,
+		&i.VatTotal,
+		&i.DeliveryCharge,
+		&i.ServiceFee,
+		&i.TotalAmount,
+		&i.PromoID,
+		&i.PromoCode,
+		&i.PromoSnapshot,
+		&i.IsPriority,
+		&i.IsReorder,
+		&i.CustomerNote,
+		&i.RiderNote,
+		&i.InternalNote,
+		&i.CancellationReason,
+		&i.CancelledBy,
+		&i.RejectionReason,
+		&i.RejectedBy,
+		&i.AutoConfirmAt,
+		&i.EstimatedDeliveryMinutes,
+		&i.ConfirmedAt,
+		&i.PreparingAt,
+		&i.ReadyAt,
+		&i.PickedAt,
+		&i.DeliveredAt,
+		&i.CancelledAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
 
 const getOrderByID = `-- name: GetOrderByID :one
 SELECT id, tenant_id, order_number, customer_id, rider_id, hub_id, status, payment_status, payment_method, platform, delivery_address_id, delivery_address, delivery_recipient_name, delivery_recipient_phone, delivery_area, delivery_geo_lat, delivery_geo_lng, subtotal, item_discount_total, promo_discount_total, vat_total, delivery_charge, service_fee, total_amount, promo_id, promo_code, promo_snapshot, is_priority, is_reorder, customer_note, rider_note, internal_note, cancellation_reason, cancelled_by, rejection_reason, rejected_by, auto_confirm_at, estimated_delivery_minutes, confirmed_at, preparing_at, ready_at, picked_at, delivered_at, cancelled_at, created_at, updated_at, deleted_at FROM orders
@@ -93,6 +161,176 @@ type GetOrderForReconciliationParams struct {
 
 func (q *Queries) GetOrderForReconciliation(ctx context.Context, arg GetOrderForReconciliationParams) ([]Order, error) {
 	rows, err := q.db.Query(ctx, getOrderForReconciliation, arg.Limit, arg.OlderThan)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Order{}
+	for rows.Next() {
+		var i Order
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.OrderNumber,
+			&i.CustomerID,
+			&i.RiderID,
+			&i.HubID,
+			&i.Status,
+			&i.PaymentStatus,
+			&i.PaymentMethod,
+			&i.Platform,
+			&i.DeliveryAddressID,
+			&i.DeliveryAddress,
+			&i.DeliveryRecipientName,
+			&i.DeliveryRecipientPhone,
+			&i.DeliveryArea,
+			&i.DeliveryGeoLat,
+			&i.DeliveryGeoLng,
+			&i.Subtotal,
+			&i.ItemDiscountTotal,
+			&i.PromoDiscountTotal,
+			&i.VatTotal,
+			&i.DeliveryCharge,
+			&i.ServiceFee,
+			&i.TotalAmount,
+			&i.PromoID,
+			&i.PromoCode,
+			&i.PromoSnapshot,
+			&i.IsPriority,
+			&i.IsReorder,
+			&i.CustomerNote,
+			&i.RiderNote,
+			&i.InternalNote,
+			&i.CancellationReason,
+			&i.CancelledBy,
+			&i.RejectionReason,
+			&i.RejectedBy,
+			&i.AutoConfirmAt,
+			&i.EstimatedDeliveryMinutes,
+			&i.ConfirmedAt,
+			&i.PreparingAt,
+			&i.ReadyAt,
+			&i.PickedAt,
+			&i.DeliveredAt,
+			&i.CancelledAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveOrdersByRider = `-- name: ListActiveOrdersByRider :many
+SELECT id, tenant_id, order_number, customer_id, rider_id, hub_id, status, payment_status, payment_method, platform, delivery_address_id, delivery_address, delivery_recipient_name, delivery_recipient_phone, delivery_area, delivery_geo_lat, delivery_geo_lng, subtotal, item_discount_total, promo_discount_total, vat_total, delivery_charge, service_fee, total_amount, promo_id, promo_code, promo_snapshot, is_priority, is_reorder, customer_note, rider_note, internal_note, cancellation_reason, cancelled_by, rejection_reason, rejected_by, auto_confirm_at, estimated_delivery_minutes, confirmed_at, preparing_at, ready_at, picked_at, delivered_at, cancelled_at, created_at, updated_at, deleted_at FROM orders
+WHERE rider_id = $1 AND tenant_id = $2
+  AND status IN ('confirmed', 'preparing', 'ready', 'picked')
+  AND deleted_at IS NULL
+ORDER BY created_at DESC
+`
+
+type ListActiveOrdersByRiderParams struct {
+	RiderID  pgtype.UUID `json:"rider_id"`
+	TenantID uuid.UUID   `json:"tenant_id"`
+}
+
+func (q *Queries) ListActiveOrdersByRider(ctx context.Context, arg ListActiveOrdersByRiderParams) ([]Order, error) {
+	rows, err := q.db.Query(ctx, listActiveOrdersByRider, arg.RiderID, arg.TenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Order{}
+	for rows.Next() {
+		var i Order
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.OrderNumber,
+			&i.CustomerID,
+			&i.RiderID,
+			&i.HubID,
+			&i.Status,
+			&i.PaymentStatus,
+			&i.PaymentMethod,
+			&i.Platform,
+			&i.DeliveryAddressID,
+			&i.DeliveryAddress,
+			&i.DeliveryRecipientName,
+			&i.DeliveryRecipientPhone,
+			&i.DeliveryArea,
+			&i.DeliveryGeoLat,
+			&i.DeliveryGeoLng,
+			&i.Subtotal,
+			&i.ItemDiscountTotal,
+			&i.PromoDiscountTotal,
+			&i.VatTotal,
+			&i.DeliveryCharge,
+			&i.ServiceFee,
+			&i.TotalAmount,
+			&i.PromoID,
+			&i.PromoCode,
+			&i.PromoSnapshot,
+			&i.IsPriority,
+			&i.IsReorder,
+			&i.CustomerNote,
+			&i.RiderNote,
+			&i.InternalNote,
+			&i.CancellationReason,
+			&i.CancelledBy,
+			&i.RejectionReason,
+			&i.RejectedBy,
+			&i.AutoConfirmAt,
+			&i.EstimatedDeliveryMinutes,
+			&i.ConfirmedAt,
+			&i.PreparingAt,
+			&i.ReadyAt,
+			&i.PickedAt,
+			&i.DeliveredAt,
+			&i.CancelledAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDeliveredOrdersByRider = `-- name: ListDeliveredOrdersByRider :many
+SELECT id, tenant_id, order_number, customer_id, rider_id, hub_id, status, payment_status, payment_method, platform, delivery_address_id, delivery_address, delivery_recipient_name, delivery_recipient_phone, delivery_area, delivery_geo_lat, delivery_geo_lng, subtotal, item_discount_total, promo_discount_total, vat_total, delivery_charge, service_fee, total_amount, promo_id, promo_code, promo_snapshot, is_priority, is_reorder, customer_note, rider_note, internal_note, cancellation_reason, cancelled_by, rejection_reason, rejected_by, auto_confirm_at, estimated_delivery_minutes, confirmed_at, preparing_at, ready_at, picked_at, delivered_at, cancelled_at, created_at, updated_at, deleted_at FROM orders
+WHERE rider_id = $1 AND tenant_id = $2
+  AND status = 'delivered'
+  AND deleted_at IS NULL
+ORDER BY delivered_at DESC
+LIMIT $3 OFFSET $4
+`
+
+type ListDeliveredOrdersByRiderParams struct {
+	RiderID  pgtype.UUID `json:"rider_id"`
+	TenantID uuid.UUID   `json:"tenant_id"`
+	Limit    int32       `json:"limit"`
+	Offset   int32       `json:"offset"`
+}
+
+func (q *Queries) ListDeliveredOrdersByRider(ctx context.Context, arg ListDeliveredOrdersByRiderParams) ([]Order, error) {
+	rows, err := q.db.Query(ctx, listDeliveredOrdersByRider,
+		arg.RiderID,
+		arg.TenantID,
+		arg.Limit,
+		arg.Offset,
+	)
 	if err != nil {
 		return nil, err
 	}
