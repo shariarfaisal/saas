@@ -229,7 +229,10 @@ func (h *Handler) ApproveRefund(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	json.NewDecoder(r.Body).Decode(&req)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.Error(w, apperror.BadRequest("invalid request body"))
+		return
+	}
 
 	issue, err := h.svc.ApproveRefund(r.Context(), t.ID, issueID)
 	if err != nil {
@@ -263,7 +266,10 @@ func (h *Handler) RejectRefund(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	json.NewDecoder(r.Body).Decode(&req)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.Error(w, apperror.BadRequest("invalid request body"))
+		return
+	}
 
 	issue, err := h.svc.RejectRefund(r.Context(), t.ID, issueID)
 	if err != nil {
