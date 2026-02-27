@@ -2,7 +2,6 @@ package user
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 
 	"github.com/google/uuid"
@@ -142,13 +141,5 @@ func (s *Service) MarkNotificationRead(ctx context.Context, userID, notifID uuid
 		return nil, apperror.NotFound("notification")
 	}
 	return n, err
-}
-
-// nullString converts a *string to sql.NullString.
-func nullStringFromPtr(s *string) sql.NullString {
-	if s == nil {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: *s, Valid: true}
 }
 

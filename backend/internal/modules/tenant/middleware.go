@@ -113,8 +113,10 @@ func (res *Resolver) getTenantByID(ctx context.Context, id uuid.UUID) (*sqlc.Ten
 	})
 }
 
-func (res *Resolver) getWithCache(ctx context.Context, _ string, fetch func() (*sqlc.Tenant, error)) (*sqlc.Tenant, error) {
-	// Redis caching is optional; skip if not configured
+func (res *Resolver) getWithCache(ctx context.Context, key string, fetch func() (*sqlc.Tenant, error)) (*sqlc.Tenant, error) {
+	// TODO: implement Redis caching using key and tenantCacheTTL once Redis is required.
+	// For now, always fetch from DB to keep the dependency optional.
+	_ = key
 	return fetch()
 }
 
@@ -160,6 +162,3 @@ func extractTenantIDFromJWT(r *http.Request) uuid.UUID {
 	}
 	return id
 }
-
-// cacheKey helper — kept for future Redis caching implementation.
-var _ = tenantCacheTTL

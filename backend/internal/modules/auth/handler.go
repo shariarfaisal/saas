@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -260,16 +261,8 @@ func userResponse(u *sqlc.User) map[string]interface{} {
 
 func toAppError(err error) *apperror.AppError {
 	var appErr *apperror.AppError
-	if ok := isAppError(err, &appErr); ok {
+	if errors.As(err, &appErr) {
 		return appErr
 	}
 	return apperror.Internal("unexpected error", err)
-}
-
-func isAppError(err error, target **apperror.AppError) bool {
-	e, ok := err.(*apperror.AppError)
-	if ok {
-		*target = e
-	}
-	return ok
 }

@@ -3,7 +3,6 @@ package middleware
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -126,6 +125,3 @@ func hashBytes(b []byte) string {
 	h := sha256.Sum256(b)
 	return fmt.Sprintf("%x", h)
 }
-
-// ensure json is used for compile check
-var _ = json.Marshal
