@@ -6,11 +6,52 @@ package sqlc
 
 import (
 	"context"
+	"database/sql"
+
+	"github.com/google/uuid"
 )
 
 type Querier interface {
+	ClearDefaultAddresses(ctx context.Context, userID uuid.UUID) error
+	CountNotifications(ctx context.Context, userID uuid.UUID) (int64, error)
+	CountRecentOTPs(ctx context.Context, arg CountRecentOTPsParams) (int64, error)
+	CountWalletTransactions(ctx context.Context, userID uuid.UUID) (int64, error)
+	CreateAddress(ctx context.Context, arg CreateAddressParams) (UserAddress, error)
+	CreateIdempotencyKey(ctx context.Context, arg CreateIdempotencyKeyParams) (IdempotencyKey, error)
+	CreateOTPVerification(ctx context.Context, arg CreateOTPVerificationParams) (OtpVerification, error)
+	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
+	CreateTenant(ctx context.Context, arg CreateTenantParams) (Tenant, error)
+	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteAddress(ctx context.Context, arg DeleteAddressParams) error
+	GetAddressByID(ctx context.Context, arg GetAddressByIDParams) (UserAddress, error)
+	GetIdempotencyKey(ctx context.Context, arg GetIdempotencyKeyParams) (IdempotencyKey, error)
+	GetLatestOTP(ctx context.Context, arg GetLatestOTPParams) (OtpVerification, error)
+	GetNotificationByID(ctx context.Context, arg GetNotificationByIDParams) (Notification, error)
+	GetRefreshTokenByHash(ctx context.Context, tokenHash string) (RefreshToken, error)
+	GetTenantByDomain(ctx context.Context, customDomain sql.NullString) (Tenant, error)
+	GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, error)
+	GetTenantBySlug(ctx context.Context, slug string) (Tenant, error)
+	GetUserByEmail(ctx context.Context, arg GetUserByEmailParams) (User, error)
+	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
+	GetUserByPhone(ctx context.Context, arg GetUserByPhoneParams) (User, error)
+	IncrementOTPAttempts(ctx context.Context, id uuid.UUID) (OtpVerification, error)
+	ListAddresses(ctx context.Context, userID uuid.UUID) ([]UserAddress, error)
+	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error)
+	ListTenants(ctx context.Context, arg ListTenantsParams) ([]Tenant, error)
+	ListWalletTransactions(ctx context.Context, arg ListWalletTransactionsParams) ([]WalletTransaction, error)
+	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) (Notification, error)
+	MarkOTPVerified(ctx context.Context, id uuid.UUID) error
 	// placeholder query to validate SQLC pipeline
 	Ping(ctx context.Context) (int32, error)
+	RevokeAllUserRefreshTokens(ctx context.Context, userID uuid.UUID) error
+	RevokeRefreshToken(ctx context.Context, id uuid.UUID) error
+	SoftDeleteUser(ctx context.Context, id uuid.UUID) error
+	UpdateAddress(ctx context.Context, arg UpdateAddressParams) (UserAddress, error)
+	UpdateIdempotencyKeyResponse(ctx context.Context, arg UpdateIdempotencyKeyResponseParams) error
+	UpdateTenant(ctx context.Context, arg UpdateTenantParams) (Tenant, error)
+	UpdateTenantStatus(ctx context.Context, arg UpdateTenantStatusParams) (Tenant, error)
+	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
+	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 }
 
 var _ Querier = (*Queries)(nil)

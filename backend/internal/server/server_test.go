@@ -16,7 +16,7 @@ func newTestServer() *Server {
 			AllowedOrigins: []string{"http://localhost:3000"},
 		},
 	}
-	return New(cfg)
+	return New(cfg, Deps{})
 }
 
 func TestHealthz(t *testing.T) {
