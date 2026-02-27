@@ -8,9 +8,9 @@ SELECT * FROM rider_penalties WHERE id = $1 AND tenant_id = $2 LIMIT 1;
 
 -- name: ListPenaltiesByRider :many
 SELECT * FROM rider_penalties
-WHERE rider_id = $1
+WHERE rider_id = $1 AND tenant_id = $2
 ORDER BY created_at DESC
-LIMIT $2 OFFSET $3;
+LIMIT $3 OFFSET $4;
 
 -- name: UpdatePenaltyStatus :one
 UPDATE rider_penalties SET
@@ -23,7 +23,7 @@ RETURNING *;
 -- name: AppealPenalty :one
 UPDATE rider_penalties SET
   status = 'appealed',
-  appeal_note = $2,
+  appeal_note = $3,
   appealed_at = NOW()
-WHERE id = $1
+WHERE id = $1 AND tenant_id = $2
 RETURNING *;

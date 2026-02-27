@@ -47,9 +47,9 @@ RETURNING *;
 -- name: UpdateRiderStats :exec
 UPDATE riders SET
   total_order_count = total_order_count + 1,
-  total_earnings = total_earnings + $2,
-  pending_balance = pending_balance + $3
-WHERE id = $1;
+  total_earnings = total_earnings + $3,
+  pending_balance = pending_balance + $4
+WHERE id = $1 AND tenant_id = $2;
 
 -- name: CountRidersByTenant :one
 SELECT COUNT(*) FROM riders WHERE tenant_id = $1;

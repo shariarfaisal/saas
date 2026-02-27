@@ -15,4 +15,4 @@ FROM rider_earnings
 WHERE rider_id = $1 AND is_paid_out = false;
 
 -- name: ListEarningsByOrder :many
-SELECT * FROM rider_earnings WHERE order_id = $1;
+SELECT * FROM rider_earnings WHERE order_id = $1 AND tenant_id = $2;
