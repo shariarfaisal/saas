@@ -267,7 +267,8 @@ func (s *Service) ResetPasswordRequest(ctx context.Context, email string) error 
 		return apperror.Internal("store reset token", err)
 	}
 
-	// TODO: send password reset email
+	// NOTE: email delivery is not yet implemented; a follow-up task will add the email service.
+	// The reset token is available in Redis for passwordResetTTL (1 hour).
 	return nil
 }
 

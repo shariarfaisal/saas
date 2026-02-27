@@ -142,4 +142,3 @@ func (s *Service) MarkNotificationRead(ctx context.Context, userID, notifID uuid
 	}
 	return n, err
 }
-

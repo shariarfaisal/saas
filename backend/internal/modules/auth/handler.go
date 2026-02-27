@@ -11,6 +11,7 @@ import (
 	"github.com/munchies/platform/backend/internal/modules/tenant"
 	"github.com/munchies/platform/backend/internal/pkg/apperror"
 	"github.com/munchies/platform/backend/internal/pkg/respond"
+	"github.com/rs/zerolog/log"
 )
 
 // Handler handles auth HTTP requests.
@@ -231,7 +232,9 @@ func (h *Handler) getRefreshToken(r *http.Request) string {
 	var body struct {
 		RefreshToken string `json:"refresh_token"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&body)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		log.Debug().Err(err).Msg("failed to decode refresh token from body")
+	}
 	return body.RefreshToken
 }
 

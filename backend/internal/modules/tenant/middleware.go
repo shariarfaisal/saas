@@ -2,6 +2,7 @@ package tenant
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -114,10 +115,27 @@ func (res *Resolver) getTenantByID(ctx context.Context, id uuid.UUID) (*sqlc.Ten
 }
 
 func (res *Resolver) getWithCache(ctx context.Context, key string, fetch func() (*sqlc.Tenant, error)) (*sqlc.Tenant, error) {
-	// TODO: implement Redis caching using key and tenantCacheTTL once Redis is required.
-	// For now, always fetch from DB to keep the dependency optional.
-	_ = key
-	return fetch()
+	if res.redis != nil {
+		if cached, err := res.redis.Get(ctx, key); err == nil && cached != "" {
+			var t sqlc.Tenant
+			if jsonErr := jsonUnmarshal([]byte(cached), &t); jsonErr == nil {
+				return &t, nil
+			}
+		}
+	}
+
+	t, err := fetch()
+	if err != nil {
+		return nil, err
+	}
+
+	if res.redis != nil {
+		if encoded, jsonErr := jsonMarshal(t); jsonErr == nil {
+			_ = res.redis.Set(ctx, key, string(encoded), tenantCacheTTL)
+		}
+	}
+
+	return t, nil
 }
 
 func extractSubdomain(host string) string {
@@ -162,3 +180,8 @@ func extractTenantIDFromJWT(r *http.Request) uuid.UUID {
 	}
 	return id
 }
+
+var (
+jsonMarshal   = json.Marshal
+jsonUnmarshal = json.Unmarshal
+)
