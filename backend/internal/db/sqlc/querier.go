@@ -12,6 +12,68 @@ import (
 )
 
 type Querier interface {
+	// Hub queries
+	CreateHub(ctx context.Context, arg CreateHubParams) (Hub, error)
+	GetHubByID(ctx context.Context, arg GetHubByIDParams) (Hub, error)
+	ListHubsByTenant(ctx context.Context, tenantID uuid.UUID) ([]Hub, error)
+	UpdateHub(ctx context.Context, arg UpdateHubParams) (Hub, error)
+	DeleteHub(ctx context.Context, arg DeleteHubParams) error
+	CreateHubArea(ctx context.Context, arg CreateHubAreaParams) (HubCoverageArea, error)
+	GetHubAreaByID(ctx context.Context, id uuid.UUID) (HubCoverageArea, error)
+	GetHubAreaByName(ctx context.Context, arg GetHubAreaByNameParams) (HubCoverageArea, error)
+	ListHubAreas(ctx context.Context, hubID uuid.UUID) ([]HubCoverageArea, error)
+	UpdateHubArea(ctx context.Context, arg UpdateHubAreaParams) (HubCoverageArea, error)
+	DeleteHubArea(ctx context.Context, id uuid.UUID) error
+	GetDeliveryZoneConfig(ctx context.Context, tenantID uuid.UUID) (DeliveryZoneConfig, error)
+	UpsertDeliveryZoneConfig(ctx context.Context, arg UpsertDeliveryZoneConfigParams) (DeliveryZoneConfig, error)
+	// Restaurant queries
+	CreateRestaurant(ctx context.Context, arg CreateRestaurantParams) (Restaurant, error)
+	GetRestaurantByID(ctx context.Context, arg GetRestaurantByIDParams) (Restaurant, error)
+	GetRestaurantBySlug(ctx context.Context, arg GetRestaurantBySlugParams) (Restaurant, error)
+	ListRestaurantsByTenant(ctx context.Context, arg ListRestaurantsByTenantParams) ([]Restaurant, error)
+	CountRestaurantsByTenant(ctx context.Context, tenantID uuid.UUID) (int64, error)
+	ListAvailableByHubAndArea(ctx context.Context, arg ListAvailableByHubAndAreaParams) ([]Restaurant, error)
+	UpdateRestaurant(ctx context.Context, arg UpdateRestaurantParams) (Restaurant, error)
+	UpdateRestaurantAvailability(ctx context.Context, arg UpdateRestaurantAvailabilityParams) (Restaurant, error)
+	DeleteRestaurant(ctx context.Context, arg DeleteRestaurantParams) error
+	UpsertOperatingHour(ctx context.Context, arg UpsertOperatingHourParams) (RestaurantOperatingHour, error)
+	ListOperatingHours(ctx context.Context, restaurantID uuid.UUID) ([]RestaurantOperatingHour, error)
+	DeleteOperatingHours(ctx context.Context, restaurantID uuid.UUID) error
+	// Category queries
+	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
+	GetCategoryByID(ctx context.Context, arg GetCategoryByIDParams) (Category, error)
+	ListCategoriesByRestaurant(ctx context.Context, arg ListCategoriesByRestaurantParams) ([]Category, error)
+	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error)
+	DeleteCategory(ctx context.Context, arg DeleteCategoryParams) error
+	UpdateCategorySortOrder(ctx context.Context, arg UpdateCategorySortOrderParams) error
+	// Product queries
+	CreateProduct(ctx context.Context, arg CreateProductParams) (Product, error)
+	GetProductByID(ctx context.Context, arg GetProductByIDParams) (Product, error)
+	GetProductByIDPublic(ctx context.Context, id uuid.UUID) (Product, error)
+	ListProductsByRestaurant(ctx context.Context, arg ListProductsByRestaurantParams) ([]Product, error)
+	CountProductsByRestaurant(ctx context.Context, arg CountProductsByRestaurantParams) (int64, error)
+	ListAvailableProductsByRestaurant(ctx context.Context, restaurantID uuid.UUID) ([]Product, error)
+	UpdateProduct(ctx context.Context, arg UpdateProductParams) (Product, error)
+	UpdateProductAvailability(ctx context.Context, arg UpdateProductAvailabilityParams) (Product, error)
+	UpdateProductHasModifiers(ctx context.Context, arg UpdateProductHasModifiersParams) error
+	DeleteProduct(ctx context.Context, arg DeleteProductParams) error
+	// Modifier group/option queries
+	CreateModifierGroup(ctx context.Context, arg CreateModifierGroupParams) (ProductModifierGroup, error)
+	GetModifierGroupByID(ctx context.Context, id uuid.UUID) (ProductModifierGroup, error)
+	ListModifierGroupsByProduct(ctx context.Context, productID uuid.UUID) ([]ProductModifierGroup, error)
+	UpdateModifierGroup(ctx context.Context, arg UpdateModifierGroupParams) (ProductModifierGroup, error)
+	DeleteModifierGroup(ctx context.Context, id uuid.UUID) error
+	CreateModifierOption(ctx context.Context, arg CreateModifierOptionParams) (ProductModifierOption, error)
+	ListModifierOptionsByGroup(ctx context.Context, modifierGroupID uuid.UUID) ([]ProductModifierOption, error)
+	UpdateModifierOption(ctx context.Context, arg UpdateModifierOptionParams) (ProductModifierOption, error)
+	DeleteModifierOption(ctx context.Context, id uuid.UUID) error
+	DeleteModifierOptionsByGroup(ctx context.Context, modifierGroupID uuid.UUID) error
+	// Discount queries
+	UpsertProductDiscount(ctx context.Context, arg UpsertProductDiscountParams) (ProductDiscount, error)
+	GetActiveDiscount(ctx context.Context, productID uuid.UUID) (ProductDiscount, error)
+	DeactivateProductDiscount(ctx context.Context, productID uuid.UUID) error
+	ExpireDiscounts(ctx context.Context) error
+	// Existing queries
 	ClearDefaultAddresses(ctx context.Context, userID uuid.UUID) error
 	CountNotifications(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountRecentOTPs(ctx context.Context, arg CountRecentOTPsParams) (int64, error)
