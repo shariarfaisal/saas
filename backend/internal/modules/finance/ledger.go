@@ -44,9 +44,10 @@ func (s *LedgerService) Record(ctx context.Context, tenantID *uuid.UUID, account
 
 	// Get current balance
 	lastBalance := decimal.Zero
-	balance, err := s.q.GetLastLedgerEntryBalance(ctx, account.ID)
-	if err == nil {
-		lastBalance = balance
+	balancePg, err := s.q.GetLastLedgerEntryBalance(ctx, account.ID)
+	if err == nil && balancePg.Valid {
+		f, _ := balancePg.Float64Value()
+		lastBalance = decimal.NewFromFloat(f.Float64)
 	}
 
 	newBalance := lastBalance.Add(debit).Sub(credit)
@@ -54,14 +55,14 @@ func (s *LedgerService) Record(ctx context.Context, tenantID *uuid.UUID, account
 	metadataJSON, _ := json.Marshal(metadata)
 
 	entry, err := s.q.CreateLedgerEntry(ctx, sqlc.CreateLedgerEntryParams{
-		TenantID:      tenantID,
+		TenantID:      toPgUUIDPtr(tenantID),
 		AccountID:     account.ID,
 		EntryType:     entryType,
 		ReferenceType: refType,
 		ReferenceID:   refID,
-		Debit:         debit,
-		Credit:        credit,
-		BalanceAfter:  newBalance,
+		Debit:         toPgNumeric(debit),
+		Credit:        toPgNumeric(credit),
+		BalanceAfter:  toPgNumeric(newBalance),
 		Description:   description,
 		Metadata:      metadataJSON,
 	})
@@ -93,7 +94,7 @@ func (s *LedgerService) SeedPlatformAccounts(ctx context.Context) error {
 				Code:        a.Code,
 				Name:        a.Name,
 				AccountType: a.AccountType,
-				Description: &a.Description,
+				Description: toNullString(&a.Description),
 				IsSystem:    true,
 			})
 			if err != nil {
@@ -110,13 +111,13 @@ func (s *LedgerService) SeedPlatformAccounts(ctx context.Context) error {
 func (s *Service) CreateAuditLog(ctx context.Context, tenantID, actorID uuid.UUID, action, resourceType string, resourceID uuid.UUID, reason string) {
 	changes, _ := json.Marshal(map[string]interface{}{})
 	s.q.CreateAuditLog(ctx, sqlc.CreateAuditLogParams{
-		TenantID:     &tenantID,
-		ActorID:      &actorID,
+		TenantID:     toPgUUID(tenantID),
+		ActorID:      toPgUUID(actorID),
 		ActorType:    sqlc.ActorTypePlatformAdmin,
 		Action:       action,
 		ResourceType: resourceType,
-		ResourceID:   &resourceID,
+		ResourceID:   toPgUUID(resourceID),
 		Changes:      changes,
-		Reason:       &reason,
+		Reason:       toNullStringVal(reason),
 	})
 }

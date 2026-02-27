@@ -29,7 +29,7 @@ func (s *WalletService) Credit(ctx context.Context, userID, tenantID uuid.UUID, 
 	}
 
 	// Get current balance
-	currentBalance, err := s.q.GetUserWalletBalance(ctx, userID)
+	currentBalancePg, err := s.q.GetUserWalletBalance(ctx, userID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperror.NotFound("user")
 	}
@@ -37,11 +37,12 @@ func (s *WalletService) Credit(ctx context.Context, userID, tenantID uuid.UUID, 
 		return nil, fmt.Errorf("get wallet balance: %w", err)
 	}
 
+	currentBalance := pgNumericToDecimal(currentBalancePg)
 	newBalance := currentBalance.Add(amount)
 
 	// Credit the user's wallet balance
 	if err := s.q.CreditUserWallet(ctx, sqlc.CreditUserWalletParams{
-		Amount: amount,
+		Amount: toPgNumeric(amount),
 		ID:     userID,
 	}); err != nil {
 		return nil, fmt.Errorf("credit wallet: %w", err)
@@ -51,12 +52,12 @@ func (s *WalletService) Credit(ctx context.Context, userID, tenantID uuid.UUID, 
 	txn, err := s.q.CreateWalletTransaction(ctx, sqlc.CreateWalletTransactionParams{
 		UserID:       userID,
 		TenantID:     tenantID,
-		OrderID:      orderID,
+		OrderID:      toPgUUIDPtr(orderID),
 		Type:         sqlc.WalletTypeCredit,
 		Source:       source,
-		Amount:       amount,
-		BalanceAfter: newBalance,
-		Description:  &description,
+		Amount:       toPgNumeric(amount),
+		BalanceAfter: toPgNumeric(newBalance),
+		Description:  toNullStringVal(description),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create wallet transaction: %w", err)
@@ -71,7 +72,7 @@ func (s *WalletService) Debit(ctx context.Context, userID, tenantID uuid.UUID, o
 	}
 
 	// Get current balance
-	currentBalance, err := s.q.GetUserWalletBalance(ctx, userID)
+	currentBalancePg, err := s.q.GetUserWalletBalance(ctx, userID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperror.NotFound("user")
 	}
@@ -79,6 +80,7 @@ func (s *WalletService) Debit(ctx context.Context, userID, tenantID uuid.UUID, o
 		return nil, fmt.Errorf("get wallet balance: %w", err)
 	}
 
+	currentBalance := pgNumericToDecimal(currentBalancePg)
 	if currentBalance.LessThan(amount) {
 		return nil, apperror.BadRequest("insufficient wallet balance")
 	}
@@ -87,7 +89,7 @@ func (s *WalletService) Debit(ctx context.Context, userID, tenantID uuid.UUID, o
 
 	// Debit the user's wallet balance
 	if err := s.q.DebitUserWallet(ctx, sqlc.DebitUserWalletParams{
-		Amount: amount,
+		Amount: toPgNumeric(amount),
 		ID:     userID,
 	}); err != nil {
 		return nil, fmt.Errorf("debit wallet: %w", err)
@@ -97,12 +99,12 @@ func (s *WalletService) Debit(ctx context.Context, userID, tenantID uuid.UUID, o
 	txn, err := s.q.CreateWalletTransaction(ctx, sqlc.CreateWalletTransactionParams{
 		UserID:       userID,
 		TenantID:     tenantID,
-		OrderID:      orderID,
+		OrderID:      toPgUUIDPtr(orderID),
 		Type:         sqlc.WalletTypeDebit,
 		Source:       source,
-		Amount:       amount,
-		BalanceAfter: newBalance,
-		Description:  &description,
+		Amount:       toPgNumeric(amount),
+		BalanceAfter: toPgNumeric(newBalance),
+		Description:  toNullStringVal(description),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create wallet transaction: %w", err)
@@ -112,12 +114,12 @@ func (s *WalletService) Debit(ctx context.Context, userID, tenantID uuid.UUID, o
 
 // GetBalance returns the current wallet balance for a user.
 func (s *WalletService) GetBalance(ctx context.Context, userID uuid.UUID) (decimal.Decimal, error) {
-	balance, err := s.q.GetUserWalletBalance(ctx, userID)
+	balancePg, err := s.q.GetUserWalletBalance(ctx, userID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return decimal.Zero, apperror.NotFound("user")
 	}
 	if err != nil {
 		return decimal.Zero, fmt.Errorf("get wallet balance: %w", err)
 	}
-	return balance, nil
+	return pgNumericToDecimal(balancePg), nil
 }

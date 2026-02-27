@@ -2,9 +2,11 @@ package notification
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/munchies/platform/backend/internal/db/sqlc"
 	"github.com/rs/zerolog/log"
 )
@@ -42,12 +44,12 @@ func (s *Service) SendPush(ctx context.Context, tenantID *uuid.UUID, userID uuid
 	// Persist notification
 	actionPayload, _ := json.Marshal(data)
 	_, err := s.q.CreateNotification(ctx, sqlc.CreateNotificationParams{
-		TenantID:      tenantID,
+		TenantID:      toPgUUIDPtr(tenantID),
 		UserID:        userID,
 		Channel:       sqlc.NotificationChannelPush,
 		Title:         title,
 		Body:          body,
-		ActionType:    strPtr(data["action_type"]),
+		ActionType:    toNullStringVal(data["action_type"]),
 		ActionPayload: actionPayload,
 		Status:        sqlc.NotificationStatusPending,
 	})
@@ -60,16 +62,16 @@ func (s *Service) SendPush(ctx context.Context, tenantID *uuid.UUID, userID uuid
 	}
 
 	// Get user's push token
-	token, err := s.q.GetUserDevicePushToken(ctx, userID)
+	tokenNs, err := s.q.GetUserDevicePushToken(ctx, userID)
 	if err != nil {
 		return nil
 	}
-	if token == nil || *token == "" {
+	if !tokenNs.Valid || tokenNs.String == "" {
 		return nil
 	}
 
 	// Send push notification
-	if err := s.fcm.Send(ctx, *token, title, body, data); err != nil {
+	if err := s.fcm.Send(ctx, tokenNs.String, title, body, data); err != nil {
 		// If token is invalid, clear it
 		log.Warn().Err(err).Str("user_id", userID.String()).Msg("push notification failed")
 		return err
@@ -94,9 +96,16 @@ func (s *Service) SendEmail(ctx context.Context, to, subject, htmlBody string) e
 	return s.mail.Send(ctx, to, subject, htmlBody)
 }
 
-func strPtr(s string) *string {
-	if s == "" {
-		return nil
+func toPgUUIDPtr(id *uuid.UUID) pgtype.UUID {
+	if id == nil {
+		return pgtype.UUID{}
 	}
-	return &s
+	return pgtype.UUID{Bytes: *id, Valid: true}
+}
+
+func toNullStringVal(s string) sql.NullString {
+	if s == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: s, Valid: true}
 }

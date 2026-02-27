@@ -2,12 +2,14 @@ package content
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/munchies/platform/backend/internal/db/sqlc"
 	"github.com/munchies/platform/backend/internal/pkg/apperror"
 	"github.com/munchies/platform/backend/internal/pkg/pagination"
@@ -34,17 +36,17 @@ func (s *Service) CreateBanner(ctx context.Context, tenantID uuid.UUID, req Crea
 	banner, err := s.q.CreateBanner(ctx, sqlc.CreateBannerParams{
 		TenantID:       tenantID,
 		Title:          req.Title,
-		Subtitle:       req.Subtitle,
+		Subtitle:       toNullString(req.Subtitle),
 		ImageUrl:       req.ImageURL,
-		MobileImageUrl: req.MobileImageURL,
-		LinkType:       req.LinkType,
-		LinkValue:      req.LinkValue,
+		MobileImageUrl: toNullString(req.MobileImageURL),
+		LinkType:       toNullLinkTargetType(req.LinkType),
+		LinkValue:      toNullString(req.LinkValue),
 		Platform:       req.Platform,
 		SortOrder:      req.SortOrder,
 		IsActive:       req.IsActive,
 		HubIds:         hubIDs,
-		StartsAt:       req.StartsAt,
-		EndsAt:         req.EndsAt,
+		StartsAt:       toPgTimestamptz(req.StartsAt),
+		EndsAt:         toPgTimestamptz(req.EndsAt),
 	})
 	if err != nil {
 		return nil, err
@@ -77,17 +79,17 @@ func (s *Service) UpdateBanner(ctx context.Context, tenantID, bannerID uuid.UUID
 		ID:             bannerID,
 		TenantID:       tenantID,
 		Title:          req.Title,
-		Subtitle:       req.Subtitle,
+		Subtitle:       toNullString(req.Subtitle),
 		ImageUrl:       req.ImageURL,
-		MobileImageUrl: req.MobileImageURL,
-		LinkType:       req.LinkType,
-		LinkValue:      req.LinkValue,
+		MobileImageUrl: toNullString(req.MobileImageURL),
+		LinkType:       toNullLinkTargetType(req.LinkType),
+		LinkValue:      toNullString(req.LinkValue),
 		Platform:       req.Platform,
 		SortOrder:      req.SortOrder,
 		IsActive:       req.IsActive,
 		HubIds:         hubIDs,
-		StartsAt:       req.StartsAt,
-		EndsAt:         req.EndsAt,
+		StartsAt:       toPgTimestamptz(req.StartsAt),
+		EndsAt:         toPgTimestamptz(req.EndsAt),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperror.NotFound("banner")
@@ -135,13 +137,13 @@ func (s *Service) ListActiveBanners(ctx context.Context, tenantID uuid.UUID) ([]
 func (s *Service) CreateStory(ctx context.Context, tenantID uuid.UUID, req CreateStoryRequest) (*sqlc.Story, error) {
 	story, err := s.q.CreateStory(ctx, sqlc.CreateStoryParams{
 		TenantID:     tenantID,
-		RestaurantID: req.RestaurantID,
-		Title:        req.Title,
+		RestaurantID: toPgUUIDPtr(req.RestaurantID),
+		Title:        toNullString(req.Title),
 		MediaUrl:     req.MediaURL,
 		MediaType:    req.MediaType,
-		ThumbnailUrl: req.ThumbnailURL,
-		LinkType:     req.LinkType,
-		LinkValue:    req.LinkValue,
+		ThumbnailUrl: toNullString(req.ThumbnailURL),
+		LinkType:     toNullLinkTargetType(req.LinkType),
+		LinkValue:    toNullString(req.LinkValue),
 		ExpiresAt:    req.ExpiresAt,
 		SortOrder:    req.SortOrder,
 		IsActive:     req.IsActive,
@@ -216,7 +218,7 @@ func (s *Service) UpdateSection(ctx context.Context, tenantID, sectionID uuid.UU
 		ID:          sectionID,
 		TenantID:    tenantID,
 		Title:       req.Title,
-		Subtitle:    req.Subtitle,
+		Subtitle:    toNullString(req.Subtitle),
 		ContentType: req.ContentType,
 		ItemIds:     itemIDs,
 		FilterRule:  filterRule,
@@ -282,4 +284,32 @@ type UpdateSectionRequest struct {
 	SortOrder   int32
 	IsActive    bool
 	HubIDs      []uuid.UUID
+}
+
+func toNullString(s *string) sql.NullString {
+	if s == nil {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: *s, Valid: true}
+}
+
+func toNullLinkTargetType(lt *sqlc.LinkTargetType) sqlc.NullLinkTargetType {
+	if lt == nil {
+		return sqlc.NullLinkTargetType{}
+	}
+	return sqlc.NullLinkTargetType{LinkTargetType: *lt, Valid: true}
+}
+
+func toPgUUIDPtr(id *uuid.UUID) pgtype.UUID {
+	if id == nil {
+		return pgtype.UUID{}
+	}
+	return pgtype.UUID{Bytes: *id, Valid: true}
+}
+
+func toPgTimestamptz(t *time.Time) pgtype.Timestamptz {
+	if t == nil {
+		return pgtype.Timestamptz{}
+	}
+	return pgtype.Timestamptz{Time: *t, Valid: true}
 }

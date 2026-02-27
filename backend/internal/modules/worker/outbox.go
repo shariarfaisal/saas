@@ -2,7 +2,9 @@ package worker
 
 import (
 	"context"
+	"database/sql"
 
+	"github.com/munchies/platform/backend/internal/db/sqlc"
 	"github.com/rs/zerolog/log"
 )
 
@@ -30,7 +32,10 @@ func (w *Worker) ProcessOutboxEvents(ctx context.Context) error {
 					Str("event_type", event.EventType).
 					Msg("failed to publish outbox event to Redis")
 
-				if err := w.q.MarkOutboxEventFailed(ctx, event.ID, err.Error()); err != nil {
+				if err := w.q.MarkOutboxEventFailed(ctx, sqlc.MarkOutboxEventFailedParams{
+					ID:        event.ID,
+					LastError: sql.NullString{String: err.Error(), Valid: true},
+				}); err != nil {
 					log.Error().Err(err).Str("event_id", event.ID.String()).Msg("failed to mark outbox event as failed")
 				}
 				failed++

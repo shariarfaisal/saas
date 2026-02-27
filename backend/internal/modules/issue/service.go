@@ -2,11 +2,13 @@ package issue
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/munchies/platform/backend/internal/db/sqlc"
 	"github.com/munchies/platform/backend/internal/pkg/apperror"
 	"github.com/munchies/platform/backend/internal/pkg/pagination"
@@ -97,8 +99,8 @@ func (s *Service) Resolve(ctx context.Context, tenantID, issueID, resolvedByID u
 		ID:             issueID,
 		TenantID:       tenantID,
 		Status:         sqlc.IssueStatusResolved,
-		ResolutionNote: &note,
-		ResolvedByID:   &resolvedByID,
+		ResolutionNote: toNullStringVal(note),
+		ResolvedByID:   toPgUUID(resolvedByID),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperror.NotFound("issue")
@@ -186,13 +188,24 @@ func (s *Service) ListMessages(ctx context.Context, tenantID, issueID uuid.UUID)
 func (s *Service) CreateAuditLog(ctx context.Context, tenantID, actorID uuid.UUID, action, resourceType string, resourceID uuid.UUID, reason string) {
 	changes, _ := json.Marshal(map[string]interface{}{})
 	s.q.CreateAuditLog(ctx, sqlc.CreateAuditLogParams{
-		TenantID:     &tenantID,
-		ActorID:      &actorID,
+		TenantID:     toPgUUID(tenantID),
+		ActorID:      toPgUUID(actorID),
 		ActorType:    sqlc.ActorTypePlatformAdmin,
 		Action:       action,
 		ResourceType: resourceType,
-		ResourceID:   &resourceID,
+		ResourceID:   toPgUUID(resourceID),
 		Changes:      changes,
-		Reason:       &reason,
+		Reason:       toNullStringVal(reason),
 	})
+}
+
+func toPgUUID(id uuid.UUID) pgtype.UUID {
+	return pgtype.UUID{Bytes: id, Valid: true}
+}
+
+func toNullStringVal(s string) sql.NullString {
+	if s == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: s, Valid: true}
 }

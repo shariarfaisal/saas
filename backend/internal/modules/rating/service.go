@@ -2,6 +2,7 @@ package rating
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 
 	"github.com/google/uuid"
@@ -9,7 +10,6 @@ import (
 	"github.com/munchies/platform/backend/internal/db/sqlc"
 	"github.com/munchies/platform/backend/internal/pkg/apperror"
 	"github.com/munchies/platform/backend/internal/pkg/pagination"
-	"github.com/shopspring/decimal"
 )
 
 // Service implements rating business logic.
@@ -58,7 +58,7 @@ func (s *Service) CreateRating(ctx context.Context, tenantID uuid.UUID, req Crea
 		RestaurantID:     req.RestaurantID,
 		RestaurantRating: req.RestaurantRating,
 		RiderRating:      req.RiderRating,
-		Comment:          req.Comment,
+		Comment:          toNullString(req.Comment),
 		Images:           req.Images,
 	})
 	if err != nil {
@@ -77,10 +77,9 @@ func (s *Service) updateRestaurantRating(ctx context.Context, restaurantID uuid.
 	if err != nil {
 		return
 	}
-	avgRating, _ := avg.AvgRating.Float64()
 	s.q.UpdateRestaurantRating(ctx, sqlc.UpdateRestaurantRatingParams{
 		ID:          restaurantID,
-		RatingAvg:   decimal.NewFromFloat(avgRating),
+		RatingAvg:   avg.AvgRating,
 		RatingCount: int32(avg.ReviewCount),
 	})
 }
@@ -112,7 +111,7 @@ func (s *Service) RespondToReview(ctx context.Context, tenantID, reviewID uuid.U
 	review, err := s.q.UpdateRestaurantReply(ctx, sqlc.UpdateRestaurantReplyParams{
 		ID:              reviewID,
 		TenantID:        tenantID,
-		RestaurantReply: &reply,
+		RestaurantReply: toNullStringVal(reply),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperror.NotFound("review")
@@ -132,4 +131,18 @@ type CreateRatingRequest struct {
 	RiderRating      *int16
 	Comment          *string
 	Images           []string
+}
+
+func toNullString(s *string) sql.NullString {
+	if s == nil {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: *s, Valid: true}
+}
+
+func toNullStringVal(s string) sql.NullString {
+	if s == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: s, Valid: true}
 }

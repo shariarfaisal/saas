@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/munchies/platform/backend/internal/db/sqlc"
 )
 
@@ -50,19 +51,19 @@ func GenerateInvoicePDF(inv *sqlc.Invoice) ([]byte, error) {
 
 	data := map[string]interface{}{
 		"InvoiceNumber":        inv.InvoiceNumber,
-		"PeriodStart":          inv.PeriodStart.Format("2006-01-02"),
-		"PeriodEnd":            inv.PeriodEnd.Format("2006-01-02"),
+		"PeriodStart":          formatPgDate(inv.PeriodStart),
+		"PeriodEnd":            formatPgDate(inv.PeriodEnd),
 		"Status":               inv.Status,
-		"GrossSales":           inv.GrossSales.StringFixed(2),
-		"ItemDiscounts":        inv.ItemDiscounts.StringFixed(2),
-		"VendorPromoDiscounts": inv.VendorPromoDiscounts.StringFixed(2),
-		"NetSales":             inv.NetSales.StringFixed(2),
-		"VatCollected":         inv.VatCollected.StringFixed(2),
-		"CommissionRate":       inv.CommissionRate.StringFixed(2),
-		"CommissionAmount":     inv.CommissionAmount.StringFixed(2),
-		"PenaltyAmount":        inv.PenaltyAmount.StringFixed(2),
-		"AdjustmentAmount":     inv.AdjustmentAmount.StringFixed(2),
-		"NetPayable":           inv.NetPayable.StringFixed(2),
+		"GrossSales":           formatPgNumeric(inv.GrossSales),
+		"ItemDiscounts":        formatPgNumeric(inv.ItemDiscounts),
+		"VendorPromoDiscounts": formatPgNumeric(inv.VendorPromoDiscounts),
+		"NetSales":             formatPgNumeric(inv.NetSales),
+		"VatCollected":         formatPgNumeric(inv.VatCollected),
+		"CommissionRate":       formatPgNumeric(inv.CommissionRate),
+		"CommissionAmount":     formatPgNumeric(inv.CommissionAmount),
+		"PenaltyAmount":        formatPgNumeric(inv.PenaltyAmount),
+		"AdjustmentAmount":     formatPgNumeric(inv.AdjustmentAmount),
+		"NetPayable":           formatPgNumeric(inv.NetPayable),
 		"TotalOrders":          inv.TotalOrders,
 		"DeliveredOrders":      inv.DeliveredOrders,
 		"CancelledOrders":      inv.CancelledOrders,
@@ -75,4 +76,22 @@ func GenerateInvoicePDF(inv *sqlc.Invoice) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+func formatPgDate(d pgtype.Date) string {
+	if !d.Valid {
+		return ""
+	}
+	return d.Time.Format("2006-01-02")
+}
+
+func formatPgNumeric(n pgtype.Numeric) string {
+	if !n.Valid {
+		return "0.00"
+	}
+	f, err := n.Float64Value()
+	if err != nil {
+		return "0.00"
+	}
+	return fmt.Sprintf("%.2f", f.Float64)
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/munchies/platform/backend/internal/db/sqlc"
 	"github.com/munchies/platform/backend/internal/pkg/apperror"
 )
@@ -65,7 +66,7 @@ func (s *Service) Search(ctx context.Context, tenantID uuid.UUID, userID *uuid.U
 	filters, _ := json.Marshal(map[string]string{"type": searchType})
 	go s.q.CreateSearchLog(context.Background(), sqlc.CreateSearchLogParams{
 		TenantID:    tenantID,
-		UserID:      userID,
+		UserID:      toPgUUIDPtr(userID),
 		Query:       query,
 		SearchType:  searchType,
 		ResultCount: int32(resultCount),
@@ -113,4 +114,11 @@ func (s *Service) GetTopSearchTerms(ctx context.Context, tenantID uuid.UUID, lim
 		Since:    since,
 		Limit:    int32(limit),
 	})
+}
+
+func toPgUUIDPtr(id *uuid.UUID) pgtype.UUID {
+	if id == nil {
+		return pgtype.UUID{}
+	}
+	return pgtype.UUID{Bytes: *id, Valid: true}
 }

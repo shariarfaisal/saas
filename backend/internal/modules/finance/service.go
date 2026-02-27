@@ -2,12 +2,14 @@ package finance
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/munchies/platform/backend/internal/db/sqlc"
 	"github.com/munchies/platform/backend/internal/pkg/apperror"
 	"github.com/munchies/platform/backend/internal/pkg/pagination"
@@ -60,11 +62,11 @@ func (s *Service) GenerateForRestaurant(ctx context.Context, tenantID, restauran
 	var commissionRate decimal.Decimal
 
 	for _, p := range pickups {
-		grossSales = grossSales.Add(p.ItemsSubtotal)
-		itemDiscounts = itemDiscounts.Add(p.ItemsDiscount)
-		vatCollected = vatCollected.Add(p.ItemsVat)
-		commissionTotal = commissionTotal.Add(p.CommissionAmount)
-		commissionRate = p.CommissionRate // Use last known rate
+		grossSales = grossSales.Add(pgNumericToDecimal(p.ItemsSubtotal))
+		itemDiscounts = itemDiscounts.Add(pgNumericToDecimal(p.ItemsDiscount))
+		vatCollected = vatCollected.Add(pgNumericToDecimal(p.ItemsVat))
+		commissionTotal = commissionTotal.Add(pgNumericToDecimal(p.CommissionAmount))
+		commissionRate = pgNumericToDecimal(p.CommissionRate)
 	}
 
 	vendorPromoDiscounts := decimal.Zero
@@ -94,22 +96,22 @@ func (s *Service) GenerateForRestaurant(ctx context.Context, tenantID, restauran
 		InvoiceNumber:        invoiceNumber,
 		PeriodStart:          pgDateFromTime(periodStart),
 		PeriodEnd:            pgDateFromTime(periodEnd),
-		GrossSales:           grossSales,
-		ItemDiscounts:        itemDiscounts,
-		VendorPromoDiscounts: vendorPromoDiscounts,
-		NetSales:             netSales,
-		VatCollected:         vatCollected,
-		CommissionRate:       commissionRate,
-		CommissionAmount:     commissionTotal,
-		PenaltyAmount:        penaltyAmount,
-		AdjustmentAmount:     adjustmentAmount,
-		NetPayable:           netPayable,
+		GrossSales:           toPgNumeric(grossSales),
+		ItemDiscounts:        toPgNumeric(itemDiscounts),
+		VendorPromoDiscounts: toPgNumeric(vendorPromoDiscounts),
+		NetSales:             toPgNumeric(netSales),
+		VatCollected:         toPgNumeric(vatCollected),
+		CommissionRate:       toPgNumeric(commissionRate),
+		CommissionAmount:     toPgNumeric(commissionTotal),
+		PenaltyAmount:        toPgNumeric(penaltyAmount),
+		AdjustmentAmount:     toPgNumeric(adjustmentAmount),
+		NetPayable:           toPgNumeric(netPayable),
 		TotalOrders:          counts.TotalOrders,
 		DeliveredOrders:      counts.DeliveredOrders,
 		CancelledOrders:      counts.CancelledOrders,
 		RejectedOrders:       counts.RejectedOrders,
 		Status:               sqlc.InvoiceStatusDraft,
-		GeneratedBy:          generatedBy,
+		GeneratedBy:          toPgUUIDPtr(generatedBy),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create invoice: %w", err)
@@ -168,8 +170,8 @@ func (s *Service) FinalizeInvoice(ctx context.Context, tenantID, invoiceID, acto
 	inv, err := s.q.FinalizeInvoice(ctx, sqlc.FinalizeInvoiceParams{
 		ID:          invoiceID,
 		TenantID:    tenantID,
-		FinalizedBy: &actorID,
-		Notes:       notes,
+		FinalizedBy: toPgUUID(actorID),
+		Notes:       toNullString(notes),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperror.NotFound("invoice not found or not in draft status")
@@ -185,9 +187,9 @@ func (s *Service) MarkPaid(ctx context.Context, tenantID, invoiceID, actorID uui
 	inv, err := s.q.MarkInvoicePaid(ctx, sqlc.MarkInvoicePaidParams{
 		ID:               invoiceID,
 		TenantID:         tenantID,
-		PaidBy:           &actorID,
-		PaymentReference: &paymentReference,
-		Notes:            reason,
+		PaidBy:           toPgUUID(actorID),
+		PaymentReference: toNullStringVal(paymentReference),
+		Notes:            toNullString(reason),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperror.NotFound("invoice not found or not in finalized status")
@@ -199,6 +201,48 @@ func (s *Service) MarkPaid(ctx context.Context, tenantID, invoiceID, actorID uui
 }
 
 // pgDateFromTime converts a time.Time to pgtype.Date for SQLC.
-func pgDateFromTime(t time.Time) time.Time {
-	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+func pgDateFromTime(t time.Time) pgtype.Date {
+	return pgtype.Date{Time: time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC), Valid: true}
+}
+
+func pgNumericToDecimal(n pgtype.Numeric) decimal.Decimal {
+	if !n.Valid {
+		return decimal.Zero
+	}
+	f, err := n.Float64Value()
+	if err != nil {
+		return decimal.Zero
+	}
+	return decimal.NewFromFloat(f.Float64)
+}
+
+func toPgNumeric(d decimal.Decimal) pgtype.Numeric {
+	n := pgtype.Numeric{}
+	_ = n.Scan(d.String())
+	return n
+}
+
+func toPgUUIDPtr(id *uuid.UUID) pgtype.UUID {
+	if id == nil {
+		return pgtype.UUID{}
+	}
+	return pgtype.UUID{Bytes: *id, Valid: true}
+}
+
+func toPgUUID(id uuid.UUID) pgtype.UUID {
+	return pgtype.UUID{Bytes: id, Valid: true}
+}
+
+func toNullString(s *string) sql.NullString {
+	if s == nil {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: *s, Valid: true}
+}
+
+func toNullStringVal(s string) sql.NullString {
+	if s == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: s, Valid: true}
 }

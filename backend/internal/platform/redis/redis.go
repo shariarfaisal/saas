@@ -63,6 +63,11 @@ func (c *Client) Publish(ctx context.Context, channel string, message interface{
 	return c.rdb.Publish(ctx, channel, message).Err()
 }
 
+// Subscribe subscribes to one or more Redis pub/sub channels.
+func (c *Client) Subscribe(ctx context.Context, channels ...string) *redis.PubSub {
+	return c.rdb.Subscribe(ctx, channels...)
+}
+
 // Close closes the connection.
 func (c *Client) Close() error {
 	return c.rdb.Close()
