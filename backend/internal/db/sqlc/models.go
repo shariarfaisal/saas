@@ -5,8 +5,15 @@
 package sqlc
 
 import (
+	"database/sql"
 	"database/sql/driver"
+	"encoding/json"
 	"fmt"
+	"net/netip"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Accountable string
@@ -50,6 +57,93 @@ func (ns NullAccountable) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.Accountable), nil
+}
+
+type ActorType string
+
+const (
+	ActorTypeCustomer      ActorType = "customer"
+	ActorTypeRestaurant    ActorType = "restaurant"
+	ActorTypeRider         ActorType = "rider"
+	ActorTypePlatformAdmin ActorType = "platform_admin"
+	ActorTypeSystem        ActorType = "system"
+)
+
+func (e *ActorType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ActorType(s)
+	case string:
+		*e = ActorType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ActorType: %T", src)
+	}
+	return nil
+}
+
+type NullActorType struct {
+	ActorType ActorType `json:"actor_type"`
+	Valid     bool      `json:"valid"` // Valid is true if ActorType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullActorType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ActorType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ActorType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullActorType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ActorType), nil
+}
+
+type BillingCycle string
+
+const (
+	BillingCycleMonthly BillingCycle = "monthly"
+	BillingCycleAnnual  BillingCycle = "annual"
+)
+
+func (e *BillingCycle) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = BillingCycle(s)
+	case string:
+		*e = BillingCycle(s)
+	default:
+		return fmt.Errorf("unsupported scan type for BillingCycle: %T", src)
+	}
+	return nil
+}
+
+type NullBillingCycle struct {
+	BillingCycle BillingCycle `json:"billing_cycle"`
+	Valid        bool         `json:"valid"` // Valid is true if BillingCycle is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullBillingCycle) Scan(value interface{}) error {
+	if value == nil {
+		ns.BillingCycle, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.BillingCycle.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullBillingCycle) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.BillingCycle), nil
 }
 
 type DeliveryModel string
@@ -134,6 +228,98 @@ func (ns NullDiscountType) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.DiscountType), nil
+}
+
+type GenderType string
+
+const (
+	GenderTypeMale           GenderType = "male"
+	GenderTypeFemale         GenderType = "female"
+	GenderTypeOther          GenderType = "other"
+	GenderTypePreferNotToSay GenderType = "prefer_not_to_say"
+)
+
+func (e *GenderType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = GenderType(s)
+	case string:
+		*e = GenderType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for GenderType: %T", src)
+	}
+	return nil
+}
+
+type NullGenderType struct {
+	GenderType GenderType `json:"gender_type"`
+	Valid      bool       `json:"valid"` // Valid is true if GenderType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullGenderType) Scan(value interface{}) error {
+	if value == nil {
+		ns.GenderType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.GenderType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullGenderType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.GenderType), nil
+}
+
+type InventoryAdjustmentReason string
+
+const (
+	InventoryAdjustmentReasonOpeningStock     InventoryAdjustmentReason = "opening_stock"
+	InventoryAdjustmentReasonPurchase         InventoryAdjustmentReason = "purchase"
+	InventoryAdjustmentReasonManualAdjustment InventoryAdjustmentReason = "manual_adjustment"
+	InventoryAdjustmentReasonOrderReserve     InventoryAdjustmentReason = "order_reserve"
+	InventoryAdjustmentReasonOrderRelease     InventoryAdjustmentReason = "order_release"
+	InventoryAdjustmentReasonOrderConsume     InventoryAdjustmentReason = "order_consume"
+	InventoryAdjustmentReasonDamageLoss       InventoryAdjustmentReason = "damage_loss"
+	InventoryAdjustmentReasonStockReturn      InventoryAdjustmentReason = "stock_return"
+)
+
+func (e *InventoryAdjustmentReason) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = InventoryAdjustmentReason(s)
+	case string:
+		*e = InventoryAdjustmentReason(s)
+	default:
+		return fmt.Errorf("unsupported scan type for InventoryAdjustmentReason: %T", src)
+	}
+	return nil
+}
+
+type NullInventoryAdjustmentReason struct {
+	InventoryAdjustmentReason InventoryAdjustmentReason `json:"inventory_adjustment_reason"`
+	Valid                     bool                      `json:"valid"` // Valid is true if InventoryAdjustmentReason is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullInventoryAdjustmentReason) Scan(value interface{}) error {
+	if value == nil {
+		ns.InventoryAdjustmentReason, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.InventoryAdjustmentReason.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullInventoryAdjustmentReason) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.InventoryAdjustmentReason), nil
 }
 
 type InvoiceStatus string
@@ -267,6 +453,182 @@ func (ns NullIssueType) Value() (driver.Value, error) {
 	return string(ns.IssueType), nil
 }
 
+type LinkTargetType string
+
+const (
+	LinkTargetTypeRestaurant LinkTargetType = "restaurant"
+	LinkTargetTypeProduct    LinkTargetType = "product"
+	LinkTargetTypeCategory   LinkTargetType = "category"
+	LinkTargetTypeUrl        LinkTargetType = "url"
+	LinkTargetTypePromo      LinkTargetType = "promo"
+)
+
+func (e *LinkTargetType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = LinkTargetType(s)
+	case string:
+		*e = LinkTargetType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for LinkTargetType: %T", src)
+	}
+	return nil
+}
+
+type NullLinkTargetType struct {
+	LinkTargetType LinkTargetType `json:"link_target_type"`
+	Valid          bool           `json:"valid"` // Valid is true if LinkTargetType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullLinkTargetType) Scan(value interface{}) error {
+	if value == nil {
+		ns.LinkTargetType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.LinkTargetType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullLinkTargetType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.LinkTargetType), nil
+}
+
+type MediaType string
+
+const (
+	MediaTypeImage MediaType = "image"
+	MediaTypeVideo MediaType = "video"
+)
+
+func (e *MediaType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = MediaType(s)
+	case string:
+		*e = MediaType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for MediaType: %T", src)
+	}
+	return nil
+}
+
+type NullMediaType struct {
+	MediaType MediaType `json:"media_type"`
+	Valid     bool      `json:"valid"` // Valid is true if MediaType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullMediaType) Scan(value interface{}) error {
+	if value == nil {
+		ns.MediaType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.MediaType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullMediaType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.MediaType), nil
+}
+
+type NotificationChannel string
+
+const (
+	NotificationChannelPush  NotificationChannel = "push"
+	NotificationChannelSms   NotificationChannel = "sms"
+	NotificationChannelEmail NotificationChannel = "email"
+	NotificationChannelInApp NotificationChannel = "in_app"
+)
+
+func (e *NotificationChannel) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = NotificationChannel(s)
+	case string:
+		*e = NotificationChannel(s)
+	default:
+		return fmt.Errorf("unsupported scan type for NotificationChannel: %T", src)
+	}
+	return nil
+}
+
+type NullNotificationChannel struct {
+	NotificationChannel NotificationChannel `json:"notification_channel"`
+	Valid               bool                `json:"valid"` // Valid is true if NotificationChannel is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullNotificationChannel) Scan(value interface{}) error {
+	if value == nil {
+		ns.NotificationChannel, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.NotificationChannel.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullNotificationChannel) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.NotificationChannel), nil
+}
+
+type NotificationStatus string
+
+const (
+	NotificationStatusPending   NotificationStatus = "pending"
+	NotificationStatusSent      NotificationStatus = "sent"
+	NotificationStatusDelivered NotificationStatus = "delivered"
+	NotificationStatusFailed    NotificationStatus = "failed"
+	NotificationStatusRead      NotificationStatus = "read"
+)
+
+func (e *NotificationStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = NotificationStatus(s)
+	case string:
+		*e = NotificationStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for NotificationStatus: %T", src)
+	}
+	return nil
+}
+
+type NullNotificationStatus struct {
+	NotificationStatus NotificationStatus `json:"notification_status"`
+	Valid              bool               `json:"valid"` // Valid is true if NotificationStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullNotificationStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.NotificationStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.NotificationStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullNotificationStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.NotificationStatus), nil
+}
+
 type OrderStatus string
 
 const (
@@ -314,6 +676,51 @@ func (ns NullOrderStatus) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.OrderStatus), nil
+}
+
+type OutboxEventStatus string
+
+const (
+	OutboxEventStatusPending    OutboxEventStatus = "pending"
+	OutboxEventStatusProcessing OutboxEventStatus = "processing"
+	OutboxEventStatusProcessed  OutboxEventStatus = "processed"
+	OutboxEventStatusFailed     OutboxEventStatus = "failed"
+	OutboxEventStatusDeadLetter OutboxEventStatus = "dead_letter"
+)
+
+func (e *OutboxEventStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OutboxEventStatus(s)
+	case string:
+		*e = OutboxEventStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OutboxEventStatus: %T", src)
+	}
+	return nil
+}
+
+type NullOutboxEventStatus struct {
+	OutboxEventStatus OutboxEventStatus `json:"outbox_event_status"`
+	Valid             bool              `json:"valid"` // Valid is true if OutboxEventStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOutboxEventStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.OutboxEventStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OutboxEventStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOutboxEventStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OutboxEventStatus), nil
 }
 
 type PaymentMethod string
@@ -404,6 +811,50 @@ func (ns NullPaymentStatus) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.PaymentStatus), nil
+}
+
+type PayoutStatus string
+
+const (
+	PayoutStatusPending    PayoutStatus = "pending"
+	PayoutStatusProcessing PayoutStatus = "processing"
+	PayoutStatusCompleted  PayoutStatus = "completed"
+	PayoutStatusFailed     PayoutStatus = "failed"
+)
+
+func (e *PayoutStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PayoutStatus(s)
+	case string:
+		*e = PayoutStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PayoutStatus: %T", src)
+	}
+	return nil
+}
+
+type NullPayoutStatus struct {
+	PayoutStatus PayoutStatus `json:"payout_status"`
+	Valid        bool         `json:"valid"` // Valid is true if PayoutStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPayoutStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.PayoutStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PayoutStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPayoutStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PayoutStatus), nil
 }
 
 type PenaltyStatus string
@@ -887,6 +1338,50 @@ func (ns NullRiderSubject) Value() (driver.Value, error) {
 	return string(ns.RiderSubject), nil
 }
 
+type SubscriptionStatus string
+
+const (
+	SubscriptionStatusTrialing  SubscriptionStatus = "trialing"
+	SubscriptionStatusActive    SubscriptionStatus = "active"
+	SubscriptionStatusPastDue   SubscriptionStatus = "past_due"
+	SubscriptionStatusCancelled SubscriptionStatus = "cancelled"
+)
+
+func (e *SubscriptionStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = SubscriptionStatus(s)
+	case string:
+		*e = SubscriptionStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for SubscriptionStatus: %T", src)
+	}
+	return nil
+}
+
+type NullSubscriptionStatus struct {
+	SubscriptionStatus SubscriptionStatus `json:"subscription_status"`
+	Valid              bool               `json:"valid"` // Valid is true if SubscriptionStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullSubscriptionStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.SubscriptionStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.SubscriptionStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullSubscriptionStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.SubscriptionStatus), nil
+}
+
 type TenantPlan string
 
 const (
@@ -1240,4 +1735,940 @@ func (ns NullWalletType) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.WalletType), nil
+}
+
+type Banner struct {
+	ID             uuid.UUID          `json:"id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	Title          string             `json:"title"`
+	Subtitle       sql.NullString     `json:"subtitle"`
+	ImageUrl       string             `json:"image_url"`
+	MobileImageUrl sql.NullString     `json:"mobile_image_url"`
+	LinkType       NullLinkTargetType `json:"link_type"`
+	LinkValue      sql.NullString     `json:"link_value"`
+	Platform       string             `json:"platform"`
+	SortOrder      int32              `json:"sort_order"`
+	IsActive       bool               `json:"is_active"`
+	HubIds         []uuid.UUID        `json:"hub_ids"`
+	StartsAt       pgtype.Timestamptz `json:"starts_at"`
+	EndsAt         pgtype.Timestamptz `json:"ends_at"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+}
+
+type Category struct {
+	ID                   uuid.UUID      `json:"id"`
+	TenantID             uuid.UUID      `json:"tenant_id"`
+	RestaurantID         pgtype.UUID    `json:"restaurant_id"`
+	ParentID             pgtype.UUID    `json:"parent_id"`
+	Name                 string         `json:"name"`
+	Slug                 string         `json:"slug"`
+	Description          sql.NullString `json:"description"`
+	ImageUrl             sql.NullString `json:"image_url"`
+	IconUrl              sql.NullString `json:"icon_url"`
+	ExtraPrepTimeMinutes int32          `json:"extra_prep_time_minutes"`
+	IsTobacco            bool           `json:"is_tobacco"`
+	IsActive             bool           `json:"is_active"`
+	SortOrder            int32          `json:"sort_order"`
+	CreatedAt            time.Time      `json:"created_at"`
+	UpdatedAt            time.Time      `json:"updated_at"`
+}
+
+type DeliveryZoneConfig struct {
+	ID                    uuid.UUID       `json:"id"`
+	TenantID              uuid.UUID       `json:"tenant_id"`
+	Model                 DeliveryModel   `json:"model"`
+	DistanceTiers         json.RawMessage `json:"distance_tiers"`
+	FreeDeliveryThreshold pgtype.Numeric  `json:"free_delivery_threshold"`
+	CreatedAt             time.Time       `json:"created_at"`
+	UpdatedAt             time.Time       `json:"updated_at"`
+}
+
+type HomepageSection struct {
+	ID          uuid.UUID      `json:"id"`
+	TenantID    uuid.UUID      `json:"tenant_id"`
+	Title       string         `json:"title"`
+	Subtitle    sql.NullString `json:"subtitle"`
+	ContentType string         `json:"content_type"`
+	ItemIds     []uuid.UUID    `json:"item_ids"`
+	FilterRule  []byte         `json:"filter_rule"`
+	SortOrder   int32          `json:"sort_order"`
+	IsActive    bool           `json:"is_active"`
+	HubIds      []uuid.UUID    `json:"hub_ids"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+}
+
+type Hub struct {
+	ID           uuid.UUID      `json:"id"`
+	TenantID     uuid.UUID      `json:"tenant_id"`
+	Name         string         `json:"name"`
+	Code         sql.NullString `json:"code"`
+	ManagerID    pgtype.UUID    `json:"manager_id"`
+	AddressLine1 sql.NullString `json:"address_line1"`
+	AddressLine2 sql.NullString `json:"address_line2"`
+	City         string         `json:"city"`
+	GeoLat       pgtype.Numeric `json:"geo_lat"`
+	GeoLng       pgtype.Numeric `json:"geo_lng"`
+	ContactPhone sql.NullString `json:"contact_phone"`
+	ContactEmail sql.NullString `json:"contact_email"`
+	IsActive     bool           `json:"is_active"`
+	SortOrder    int32          `json:"sort_order"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+}
+
+type HubCoverageArea struct {
+	ID                       uuid.UUID      `json:"id"`
+	HubID                    uuid.UUID      `json:"hub_id"`
+	TenantID                 uuid.UUID      `json:"tenant_id"`
+	Name                     string         `json:"name"`
+	Slug                     string         `json:"slug"`
+	DeliveryCharge           pgtype.Numeric `json:"delivery_charge"`
+	MinOrderAmount           pgtype.Numeric `json:"min_order_amount"`
+	EstimatedDeliveryMinutes int32          `json:"estimated_delivery_minutes"`
+	GeoPolygon               []byte         `json:"geo_polygon"`
+	IsActive                 bool           `json:"is_active"`
+	SortOrder                int32          `json:"sort_order"`
+}
+
+type IdempotencyKey struct {
+	ID             uuid.UUID   `json:"id"`
+	TenantID       pgtype.UUID `json:"tenant_id"`
+	UserID         pgtype.UUID `json:"user_id"`
+	Key            string      `json:"key"`
+	Endpoint       string      `json:"endpoint"`
+	RequestHash    string      `json:"request_hash"`
+	ResponseStatus *int32      `json:"response_status"`
+	ResponseBody   []byte      `json:"response_body"`
+	ExpiresAt      time.Time   `json:"expires_at"`
+	CreatedAt      time.Time   `json:"created_at"`
+}
+
+type InventoryAdjustment struct {
+	ID              uuid.UUID                 `json:"id"`
+	InventoryItemID uuid.UUID                 `json:"inventory_item_id"`
+	TenantID        uuid.UUID                 `json:"tenant_id"`
+	RestaurantID    uuid.UUID                 `json:"restaurant_id"`
+	OrderID         pgtype.UUID               `json:"order_id"`
+	AdjustmentType  InventoryAdjustmentReason `json:"adjustment_type"`
+	QtyBefore       int32                     `json:"qty_before"`
+	QtyChange       int32                     `json:"qty_change"`
+	QtyAfter        int32                     `json:"qty_after"`
+	CostPrice       pgtype.Numeric            `json:"cost_price"`
+	Note            sql.NullString            `json:"note"`
+	AdjustedBy      pgtype.UUID               `json:"adjusted_by"`
+	CreatedAt       time.Time                 `json:"created_at"`
+}
+
+type InventoryItem struct {
+	ID               uuid.UUID          `json:"id"`
+	ProductID        uuid.UUID          `json:"product_id"`
+	RestaurantID     uuid.UUID          `json:"restaurant_id"`
+	TenantID         uuid.UUID          `json:"tenant_id"`
+	StockQty         int32              `json:"stock_qty"`
+	ReservedQty      int32              `json:"reserved_qty"`
+	CostPrice        pgtype.Numeric     `json:"cost_price"`
+	ReorderThreshold int32              `json:"reorder_threshold"`
+	LastRestockedAt  pgtype.Timestamptz `json:"last_restocked_at"`
+	UpdatedAt        time.Time          `json:"updated_at"`
+}
+
+type Invoice struct {
+	ID                   uuid.UUID          `json:"id"`
+	TenantID             uuid.UUID          `json:"tenant_id"`
+	RestaurantID         uuid.UUID          `json:"restaurant_id"`
+	InvoiceNumber        string             `json:"invoice_number"`
+	PeriodStart          pgtype.Date        `json:"period_start"`
+	PeriodEnd            pgtype.Date        `json:"period_end"`
+	GrossSales           pgtype.Numeric     `json:"gross_sales"`
+	ItemDiscounts        pgtype.Numeric     `json:"item_discounts"`
+	VendorPromoDiscounts pgtype.Numeric     `json:"vendor_promo_discounts"`
+	NetSales             pgtype.Numeric     `json:"net_sales"`
+	VatCollected         pgtype.Numeric     `json:"vat_collected"`
+	CommissionRate       pgtype.Numeric     `json:"commission_rate"`
+	CommissionAmount     pgtype.Numeric     `json:"commission_amount"`
+	PenaltyAmount        pgtype.Numeric     `json:"penalty_amount"`
+	AdjustmentAmount     pgtype.Numeric     `json:"adjustment_amount"`
+	AdjustmentNote       sql.NullString     `json:"adjustment_note"`
+	NetPayable           pgtype.Numeric     `json:"net_payable"`
+	TotalOrders          int32              `json:"total_orders"`
+	DeliveredOrders      int32              `json:"delivered_orders"`
+	CancelledOrders      int32              `json:"cancelled_orders"`
+	RejectedOrders       int32              `json:"rejected_orders"`
+	Status               InvoiceStatus      `json:"status"`
+	GeneratedBy          pgtype.UUID        `json:"generated_by"`
+	FinalizedBy          pgtype.UUID        `json:"finalized_by"`
+	FinalizedAt          pgtype.Timestamptz `json:"finalized_at"`
+	PaidBy               pgtype.UUID        `json:"paid_by"`
+	PaidAt               pgtype.Timestamptz `json:"paid_at"`
+	PaymentReference     sql.NullString     `json:"payment_reference"`
+	Notes                sql.NullString     `json:"notes"`
+	CreatedAt            time.Time          `json:"created_at"`
+	UpdatedAt            time.Time          `json:"updated_at"`
+}
+
+type Notification struct {
+	ID               uuid.UUID           `json:"id"`
+	TenantID         pgtype.UUID         `json:"tenant_id"`
+	UserID           uuid.UUID           `json:"user_id"`
+	Channel          NotificationChannel `json:"channel"`
+	Title            string              `json:"title"`
+	Body             string              `json:"body"`
+	ImageUrl         sql.NullString      `json:"image_url"`
+	ActionType       sql.NullString      `json:"action_type"`
+	ActionPayload    []byte              `json:"action_payload"`
+	Status           NotificationStatus  `json:"status"`
+	SentAt           pgtype.Timestamptz  `json:"sent_at"`
+	DeliveredAt      pgtype.Timestamptz  `json:"delivered_at"`
+	ReadAt           pgtype.Timestamptz  `json:"read_at"`
+	FailedReason     sql.NullString      `json:"failed_reason"`
+	GatewayMessageID sql.NullString      `json:"gateway_message_id"`
+	CreatedAt        time.Time           `json:"created_at"`
+}
+
+type NotificationPreference struct {
+	ID            uuid.UUID   `json:"id"`
+	UserID        uuid.UUID   `json:"user_id"`
+	TenantID      pgtype.UUID `json:"tenant_id"`
+	PushEnabled   bool        `json:"push_enabled"`
+	SmsEnabled    bool        `json:"sms_enabled"`
+	EmailEnabled  bool        `json:"email_enabled"`
+	OrderUpdates  bool        `json:"order_updates"`
+	Promotions    bool        `json:"promotions"`
+	SystemAlerts  bool        `json:"system_alerts"`
+	InvoiceAlerts bool        `json:"invoice_alerts"`
+	CreatedAt     time.Time   `json:"created_at"`
+	UpdatedAt     time.Time   `json:"updated_at"`
+}
+
+type Order struct {
+	ID                       uuid.UUID          `json:"id"`
+	TenantID                 uuid.UUID          `json:"tenant_id"`
+	OrderNumber              string             `json:"order_number"`
+	CustomerID               uuid.UUID          `json:"customer_id"`
+	RiderID                  pgtype.UUID        `json:"rider_id"`
+	HubID                    pgtype.UUID        `json:"hub_id"`
+	Status                   OrderStatus        `json:"status"`
+	PaymentStatus            PaymentStatus      `json:"payment_status"`
+	PaymentMethod            PaymentMethod      `json:"payment_method"`
+	Platform                 PlatformSource     `json:"platform"`
+	DeliveryAddressID        pgtype.UUID        `json:"delivery_address_id"`
+	DeliveryAddress          json.RawMessage    `json:"delivery_address"`
+	DeliveryRecipientName    string             `json:"delivery_recipient_name"`
+	DeliveryRecipientPhone   string             `json:"delivery_recipient_phone"`
+	DeliveryArea             string             `json:"delivery_area"`
+	DeliveryGeoLat           pgtype.Numeric     `json:"delivery_geo_lat"`
+	DeliveryGeoLng           pgtype.Numeric     `json:"delivery_geo_lng"`
+	Subtotal                 pgtype.Numeric     `json:"subtotal"`
+	ItemDiscountTotal        pgtype.Numeric     `json:"item_discount_total"`
+	PromoDiscountTotal       pgtype.Numeric     `json:"promo_discount_total"`
+	VatTotal                 pgtype.Numeric     `json:"vat_total"`
+	DeliveryCharge           pgtype.Numeric     `json:"delivery_charge"`
+	ServiceFee               pgtype.Numeric     `json:"service_fee"`
+	TotalAmount              pgtype.Numeric     `json:"total_amount"`
+	PromoID                  pgtype.UUID        `json:"promo_id"`
+	PromoCode                sql.NullString     `json:"promo_code"`
+	PromoSnapshot            []byte             `json:"promo_snapshot"`
+	IsPriority               bool               `json:"is_priority"`
+	IsReorder                bool               `json:"is_reorder"`
+	CustomerNote             sql.NullString     `json:"customer_note"`
+	RiderNote                sql.NullString     `json:"rider_note"`
+	InternalNote             sql.NullString     `json:"internal_note"`
+	CancellationReason       sql.NullString     `json:"cancellation_reason"`
+	CancelledBy              NullActorType      `json:"cancelled_by"`
+	RejectionReason          sql.NullString     `json:"rejection_reason"`
+	RejectedBy               NullActorType      `json:"rejected_by"`
+	AutoConfirmAt            pgtype.Timestamptz `json:"auto_confirm_at"`
+	EstimatedDeliveryMinutes *int32             `json:"estimated_delivery_minutes"`
+	ConfirmedAt              pgtype.Timestamptz `json:"confirmed_at"`
+	PreparingAt              pgtype.Timestamptz `json:"preparing_at"`
+	ReadyAt                  pgtype.Timestamptz `json:"ready_at"`
+	PickedAt                 pgtype.Timestamptz `json:"picked_at"`
+	DeliveredAt              pgtype.Timestamptz `json:"delivered_at"`
+	CancelledAt              pgtype.Timestamptz `json:"cancelled_at"`
+	CreatedAt                time.Time          `json:"created_at"`
+	UpdatedAt                time.Time          `json:"updated_at"`
+	DeletedAt                pgtype.Timestamptz `json:"deleted_at"`
+}
+
+type OrderAnalytic struct {
+	ID                    uuid.UUID          `json:"id"`
+	TenantID              uuid.UUID          `json:"tenant_id"`
+	OrderID               uuid.UUID          `json:"order_id"`
+	RestaurantIds         []uuid.UUID        `json:"restaurant_ids"`
+	CustomerID            uuid.UUID          `json:"customer_id"`
+	RiderID               pgtype.UUID        `json:"rider_id"`
+	HubID                 pgtype.UUID        `json:"hub_id"`
+	DeliveryArea          sql.NullString     `json:"delivery_area"`
+	PaymentMethod         string             `json:"payment_method"`
+	Platform              string             `json:"platform"`
+	PromoCode             sql.NullString     `json:"promo_code"`
+	Subtotal              pgtype.Numeric     `json:"subtotal"`
+	ItemDiscount          pgtype.Numeric     `json:"item_discount"`
+	PromoDiscount         pgtype.Numeric     `json:"promo_discount"`
+	DeliveryCharge        pgtype.Numeric     `json:"delivery_charge"`
+	VatTotal              pgtype.Numeric     `json:"vat_total"`
+	TotalAmount           pgtype.Numeric     `json:"total_amount"`
+	CommissionTotal       pgtype.Numeric     `json:"commission_total"`
+	ConfirmationDurationS *int32             `json:"confirmation_duration_s"`
+	PreparationDurationS  *int32             `json:"preparation_duration_s"`
+	PickupToDeliveryS     *int32             `json:"pickup_to_delivery_s"`
+	TotalFulfillmentS     *int32             `json:"total_fulfillment_s"`
+	FinalStatus           string             `json:"final_status"`
+	CancellationReason    sql.NullString     `json:"cancellation_reason"`
+	OrderDate             pgtype.Date        `json:"order_date"`
+	OrderHour             int16              `json:"order_hour"`
+	OrderDayOfWeek        int16              `json:"order_day_of_week"`
+	OrderWeek             int32              `json:"order_week"`
+	OrderMonth            int16              `json:"order_month"`
+	OrderYear             int16              `json:"order_year"`
+	CompletedAt           pgtype.Timestamptz `json:"completed_at"`
+	CreatedAt             time.Time          `json:"created_at"`
+}
+
+type OrderIssue struct {
+	ID                      uuid.UUID          `json:"id"`
+	OrderID                 uuid.UUID          `json:"order_id"`
+	TenantID                uuid.UUID          `json:"tenant_id"`
+	IssueType               IssueType          `json:"issue_type"`
+	ReportedByID            uuid.UUID          `json:"reported_by_id"`
+	Details                 string             `json:"details"`
+	EvidenceUrls            []string           `json:"evidence_urls"`
+	AccountableParty        Accountable        `json:"accountable_party"`
+	RefundItems             []byte             `json:"refund_items"`
+	RefundAmount            pgtype.Numeric     `json:"refund_amount"`
+	RefundStatus            RefundStatus       `json:"refund_status"`
+	RestaurantPenaltyAmount pgtype.Numeric     `json:"restaurant_penalty_amount"`
+	RiderPenaltyAmount      pgtype.Numeric     `json:"rider_penalty_amount"`
+	Status                  IssueStatus        `json:"status"`
+	ResolutionNote          sql.NullString     `json:"resolution_note"`
+	ResolvedByID            pgtype.UUID        `json:"resolved_by_id"`
+	ResolvedAt              pgtype.Timestamptz `json:"resolved_at"`
+	CreatedAt               time.Time          `json:"created_at"`
+	UpdatedAt               time.Time          `json:"updated_at"`
+}
+
+type OrderIssueMessage struct {
+	ID          uuid.UUID `json:"id"`
+	IssueID     uuid.UUID `json:"issue_id"`
+	TenantID    uuid.UUID `json:"tenant_id"`
+	SenderID    uuid.UUID `json:"sender_id"`
+	Message     string    `json:"message"`
+	Attachments []string  `json:"attachments"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type OrderItem struct {
+	ID                  uuid.UUID       `json:"id"`
+	OrderID             uuid.UUID       `json:"order_id"`
+	RestaurantID        uuid.UUID       `json:"restaurant_id"`
+	ProductID           uuid.UUID       `json:"product_id"`
+	TenantID            uuid.UUID       `json:"tenant_id"`
+	ProductName         string          `json:"product_name"`
+	ProductSnapshot     json.RawMessage `json:"product_snapshot"`
+	Quantity            int32           `json:"quantity"`
+	UnitPrice           pgtype.Numeric  `json:"unit_price"`
+	ModifierPrice       pgtype.Numeric  `json:"modifier_price"`
+	ItemSubtotal        pgtype.Numeric  `json:"item_subtotal"`
+	ItemDiscount        pgtype.Numeric  `json:"item_discount"`
+	ItemVat             pgtype.Numeric  `json:"item_vat"`
+	PromoDiscount       pgtype.Numeric  `json:"promo_discount"`
+	ItemTotal           pgtype.Numeric  `json:"item_total"`
+	SelectedModifiers   json.RawMessage `json:"selected_modifiers"`
+	SpecialInstructions sql.NullString  `json:"special_instructions"`
+	CreatedAt           time.Time       `json:"created_at"`
+}
+
+type OrderPickup struct {
+	ID               uuid.UUID          `json:"id"`
+	OrderID          uuid.UUID          `json:"order_id"`
+	RestaurantID     uuid.UUID          `json:"restaurant_id"`
+	TenantID         uuid.UUID          `json:"tenant_id"`
+	PickupNumber     string             `json:"pickup_number"`
+	Status           PickupStatus       `json:"status"`
+	ItemsSubtotal    pgtype.Numeric     `json:"items_subtotal"`
+	ItemsDiscount    pgtype.Numeric     `json:"items_discount"`
+	ItemsVat         pgtype.Numeric     `json:"items_vat"`
+	ItemsTotal       pgtype.Numeric     `json:"items_total"`
+	CommissionRate   pgtype.Numeric     `json:"commission_rate"`
+	CommissionAmount pgtype.Numeric     `json:"commission_amount"`
+	ConfirmedAt      pgtype.Timestamptz `json:"confirmed_at"`
+	PreparingAt      pgtype.Timestamptz `json:"preparing_at"`
+	ReadyAt          pgtype.Timestamptz `json:"ready_at"`
+	PickedAt         pgtype.Timestamptz `json:"picked_at"`
+	RejectedAt       pgtype.Timestamptz `json:"rejected_at"`
+	RejectionReason  sql.NullString     `json:"rejection_reason"`
+	CreatedAt        time.Time          `json:"created_at"`
+	UpdatedAt        time.Time          `json:"updated_at"`
+}
+
+type OrderTimelineEvent struct {
+	ID             uuid.UUID       `json:"id"`
+	OrderID        uuid.UUID       `json:"order_id"`
+	TenantID       uuid.UUID       `json:"tenant_id"`
+	EventType      string          `json:"event_type"`
+	PreviousStatus NullOrderStatus `json:"previous_status"`
+	NewStatus      NullOrderStatus `json:"new_status"`
+	Description    string          `json:"description"`
+	ActorID        pgtype.UUID     `json:"actor_id"`
+	ActorType      ActorType       `json:"actor_type"`
+	Metadata       json.RawMessage `json:"metadata"`
+	CreatedAt      time.Time       `json:"created_at"`
+}
+
+type OtpVerification struct {
+	ID          uuid.UUID          `json:"id"`
+	TenantID    pgtype.UUID        `json:"tenant_id"`
+	Phone       string             `json:"phone"`
+	Purpose     string             `json:"purpose"`
+	OtpHash     string             `json:"otp_hash"`
+	Attempts    int32              `json:"attempts"`
+	MaxAttempts int32              `json:"max_attempts"`
+	ExpiresAt   time.Time          `json:"expires_at"`
+	VerifiedAt  pgtype.Timestamptz `json:"verified_at"`
+	CreatedAt   time.Time          `json:"created_at"`
+}
+
+type OutboxEvent struct {
+	ID            uuid.UUID          `json:"id"`
+	TenantID      pgtype.UUID        `json:"tenant_id"`
+	AggregateType string             `json:"aggregate_type"`
+	AggregateID   uuid.UUID          `json:"aggregate_id"`
+	EventType     string             `json:"event_type"`
+	Payload       json.RawMessage    `json:"payload"`
+	Status        OutboxEventStatus  `json:"status"`
+	Attempts      int32              `json:"attempts"`
+	MaxAttempts   int32              `json:"max_attempts"`
+	NextRetryAt   pgtype.Timestamptz `json:"next_retry_at"`
+	LastError     sql.NullString     `json:"last_error"`
+	ProcessedAt   pgtype.Timestamptz `json:"processed_at"`
+	CreatedAt     time.Time          `json:"created_at"`
+}
+
+type PaymentTransaction struct {
+	ID                   uuid.UUID          `json:"id"`
+	TenantID             uuid.UUID          `json:"tenant_id"`
+	OrderID              uuid.UUID          `json:"order_id"`
+	UserID               uuid.UUID          `json:"user_id"`
+	PaymentMethod        PaymentMethod      `json:"payment_method"`
+	Status               TxnStatus          `json:"status"`
+	Amount               pgtype.Numeric     `json:"amount"`
+	Currency             string             `json:"currency"`
+	GatewayTransactionID sql.NullString     `json:"gateway_transaction_id"`
+	GatewayReferenceID   sql.NullString     `json:"gateway_reference_id"`
+	GatewayResponse      []byte             `json:"gateway_response"`
+	GatewayFee           pgtype.Numeric     `json:"gateway_fee"`
+	IpAddress            *netip.Addr        `json:"ip_address"`
+	UserAgent            sql.NullString     `json:"user_agent"`
+	CallbackReceivedAt   pgtype.Timestamptz `json:"callback_received_at"`
+	CreatedAt            time.Time          `json:"created_at"`
+	UpdatedAt            time.Time          `json:"updated_at"`
+}
+
+type PlatformConfig struct {
+	ID          uuid.UUID       `json:"id"`
+	Key         string          `json:"key"`
+	Value       json.RawMessage `json:"value"`
+	Description sql.NullString  `json:"description"`
+	IsPublic    bool            `json:"is_public"`
+	UpdatedBy   pgtype.UUID     `json:"updated_by"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
+}
+
+type Product struct {
+	ID              uuid.UUID      `json:"id"`
+	TenantID        uuid.UUID      `json:"tenant_id"`
+	RestaurantID    uuid.UUID      `json:"restaurant_id"`
+	CategoryID      pgtype.UUID    `json:"category_id"`
+	Name            string         `json:"name"`
+	Slug            string         `json:"slug"`
+	Description     sql.NullString `json:"description"`
+	BasePrice       pgtype.Numeric `json:"base_price"`
+	VatRate         pgtype.Numeric `json:"vat_rate"`
+	HasModifiers    bool           `json:"has_modifiers"`
+	Availability    ProductAvail   `json:"availability"`
+	Images          []string       `json:"images"`
+	Tags            []string       `json:"tags"`
+	IsFeatured      bool           `json:"is_featured"`
+	IsInvTracked    bool           `json:"is_inv_tracked"`
+	SortOrder       int32          `json:"sort_order"`
+	MetaTitle       sql.NullString `json:"meta_title"`
+	MetaDescription sql.NullString `json:"meta_description"`
+	RatingAvg       pgtype.Numeric `json:"rating_avg"`
+	RatingCount     int32          `json:"rating_count"`
+	OrderCount      int32          `json:"order_count"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
+}
+
+type ProductDiscount struct {
+	ID             uuid.UUID          `json:"id"`
+	ProductID      uuid.UUID          `json:"product_id"`
+	RestaurantID   uuid.UUID          `json:"restaurant_id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	DiscountType   DiscountType       `json:"discount_type"`
+	Amount         pgtype.Numeric     `json:"amount"`
+	MaxDiscountCap pgtype.Numeric     `json:"max_discount_cap"`
+	StartsAt       time.Time          `json:"starts_at"`
+	EndsAt         pgtype.Timestamptz `json:"ends_at"`
+	IsActive       bool               `json:"is_active"`
+	CreatedBy      pgtype.UUID        `json:"created_by"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+}
+
+type ProductModifierGroup struct {
+	ID          uuid.UUID      `json:"id"`
+	ProductID   uuid.UUID      `json:"product_id"`
+	TenantID    uuid.UUID      `json:"tenant_id"`
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
+	MinRequired int32          `json:"min_required"`
+	MaxAllowed  int32          `json:"max_allowed"`
+	SortOrder   int32          `json:"sort_order"`
+}
+
+type ProductModifierOption struct {
+	ID              uuid.UUID      `json:"id"`
+	ModifierGroupID uuid.UUID      `json:"modifier_group_id"`
+	ProductID       uuid.UUID      `json:"product_id"`
+	TenantID        uuid.UUID      `json:"tenant_id"`
+	Name            string         `json:"name"`
+	AdditionalPrice pgtype.Numeric `json:"additional_price"`
+	IsAvailable     bool           `json:"is_available"`
+	SortOrder       int32          `json:"sort_order"`
+}
+
+type Promo struct {
+	ID                 uuid.UUID          `json:"id"`
+	TenantID           uuid.UUID          `json:"tenant_id"`
+	Code               string             `json:"code"`
+	Title              string             `json:"title"`
+	Description        sql.NullString     `json:"description"`
+	PromoType          PromoType          `json:"promo_type"`
+	DiscountAmount     pgtype.Numeric     `json:"discount_amount"`
+	MaxDiscountCap     pgtype.Numeric     `json:"max_discount_cap"`
+	CashbackAmount     pgtype.Numeric     `json:"cashback_amount"`
+	FundedBy           PromoFunder        `json:"funded_by"`
+	AppliesTo          PromoApplyOn       `json:"applies_to"`
+	MinOrderAmount     pgtype.Numeric     `json:"min_order_amount"`
+	MaxTotalUses       *int32             `json:"max_total_uses"`
+	MaxUsesPerUser     int32              `json:"max_uses_per_user"`
+	IncludeStores      bool               `json:"include_stores"`
+	IsActive           bool               `json:"is_active"`
+	StartsAt           time.Time          `json:"starts_at"`
+	EndsAt             pgtype.Timestamptz `json:"ends_at"`
+	TotalUses          int32              `json:"total_uses"`
+	TotalDiscountGiven pgtype.Numeric     `json:"total_discount_given"`
+	CreatedBy          pgtype.UUID        `json:"created_by"`
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
+}
+
+type PromoCategoryRestriction struct {
+	PromoID    uuid.UUID `json:"promo_id"`
+	CategoryID uuid.UUID `json:"category_id"`
+}
+
+type PromoRestaurantRestriction struct {
+	PromoID      uuid.UUID `json:"promo_id"`
+	RestaurantID uuid.UUID `json:"restaurant_id"`
+}
+
+type PromoUsage struct {
+	ID             uuid.UUID      `json:"id"`
+	PromoID        uuid.UUID      `json:"promo_id"`
+	UserID         uuid.UUID      `json:"user_id"`
+	OrderID        uuid.UUID      `json:"order_id"`
+	TenantID       uuid.UUID      `json:"tenant_id"`
+	DiscountAmount pgtype.Numeric `json:"discount_amount"`
+	CashbackAmount pgtype.Numeric `json:"cashback_amount"`
+	CreatedAt      time.Time      `json:"created_at"`
+}
+
+type PromoUserEligibility struct {
+	PromoID uuid.UUID `json:"promo_id"`
+	UserID  uuid.UUID `json:"user_id"`
+}
+
+type RefreshToken struct {
+	ID         uuid.UUID          `json:"id"`
+	UserID     uuid.UUID          `json:"user_id"`
+	TenantID   pgtype.UUID        `json:"tenant_id"`
+	TokenHash  string             `json:"token_hash"`
+	DeviceInfo []byte             `json:"device_info"`
+	IpAddress  *netip.Addr        `json:"ip_address"`
+	ExpiresAt  time.Time          `json:"expires_at"`
+	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
+	CreatedAt  time.Time          `json:"created_at"`
+}
+
+type Refund struct {
+	ID              uuid.UUID          `json:"id"`
+	TenantID        uuid.UUID          `json:"tenant_id"`
+	OrderID         uuid.UUID          `json:"order_id"`
+	TransactionID   uuid.UUID          `json:"transaction_id"`
+	IssueID         pgtype.UUID        `json:"issue_id"`
+	Amount          pgtype.Numeric     `json:"amount"`
+	Reason          string             `json:"reason"`
+	Status          RefundStatus       `json:"status"`
+	GatewayRefundID sql.NullString     `json:"gateway_refund_id"`
+	ApprovedBy      pgtype.UUID        `json:"approved_by"`
+	ApprovedAt      pgtype.Timestamptz `json:"approved_at"`
+	ProcessedAt     pgtype.Timestamptz `json:"processed_at"`
+	CreatedAt       time.Time          `json:"created_at"`
+	UpdatedAt       time.Time          `json:"updated_at"`
+}
+
+type Restaurant struct {
+	ID                  uuid.UUID      `json:"id"`
+	TenantID            uuid.UUID      `json:"tenant_id"`
+	HubID               pgtype.UUID    `json:"hub_id"`
+	OwnerID             pgtype.UUID    `json:"owner_id"`
+	Name                string         `json:"name"`
+	Slug                string         `json:"slug"`
+	Type                RestaurantType `json:"type"`
+	Description         sql.NullString `json:"description"`
+	ShortDescription    sql.NullString `json:"short_description"`
+	BannerImageUrl      sql.NullString `json:"banner_image_url"`
+	LogoUrl             sql.NullString `json:"logo_url"`
+	GalleryUrls         []string       `json:"gallery_urls"`
+	Phone               sql.NullString `json:"phone"`
+	Email               sql.NullString `json:"email"`
+	AddressLine1        sql.NullString `json:"address_line1"`
+	AddressLine2        sql.NullString `json:"address_line2"`
+	Area                sql.NullString `json:"area"`
+	City                string         `json:"city"`
+	GeoLat              pgtype.Numeric `json:"geo_lat"`
+	GeoLng              pgtype.Numeric `json:"geo_lng"`
+	Cuisines            []string       `json:"cuisines"`
+	Tags                []string       `json:"tags"`
+	CommissionRate      pgtype.Numeric `json:"commission_rate"`
+	VatRate             pgtype.Numeric `json:"vat_rate"`
+	IsVatInclusive      bool           `json:"is_vat_inclusive"`
+	MinOrderAmount      pgtype.Numeric `json:"min_order_amount"`
+	AvgPrepTimeMinutes  int32          `json:"avg_prep_time_minutes"`
+	MaxConcurrentOrders int32          `json:"max_concurrent_orders"`
+	AutoAcceptOrders    bool           `json:"auto_accept_orders"`
+	OrderPrefix         sql.NullString `json:"order_prefix"`
+	OrderSequence       int64          `json:"order_sequence"`
+	IsAvailable         bool           `json:"is_available"`
+	IsFeatured          bool           `json:"is_featured"`
+	IsActive            bool           `json:"is_active"`
+	SortOrder           int32          `json:"sort_order"`
+	MetaTitle           sql.NullString `json:"meta_title"`
+	MetaDescription     sql.NullString `json:"meta_description"`
+	MetaKeywords        []string       `json:"meta_keywords"`
+	RatingAvg           pgtype.Numeric `json:"rating_avg"`
+	RatingCount         int32          `json:"rating_count"`
+	TotalOrderCount     int32          `json:"total_order_count"`
+	CreatedAt           time.Time      `json:"created_at"`
+	UpdatedAt           time.Time      `json:"updated_at"`
+}
+
+type RestaurantOperatingHour struct {
+	ID           uuid.UUID   `json:"id"`
+	RestaurantID uuid.UUID   `json:"restaurant_id"`
+	TenantID     uuid.UUID   `json:"tenant_id"`
+	DayOfWeek    int16       `json:"day_of_week"`
+	OpenTime     pgtype.Time `json:"open_time"`
+	CloseTime    pgtype.Time `json:"close_time"`
+	IsClosed     bool        `json:"is_closed"`
+}
+
+type RestaurantStaffAssignment struct {
+	ID           uuid.UUID   `json:"id"`
+	RestaurantID uuid.UUID   `json:"restaurant_id"`
+	UserID       uuid.UUID   `json:"user_id"`
+	TenantID     uuid.UUID   `json:"tenant_id"`
+	Role         UserRole    `json:"role"`
+	AssignedBy   pgtype.UUID `json:"assigned_by"`
+	AssignedAt   time.Time   `json:"assigned_at"`
+}
+
+type Review struct {
+	ID                uuid.UUID          `json:"id"`
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	OrderID           uuid.UUID          `json:"order_id"`
+	UserID            uuid.UUID          `json:"user_id"`
+	RestaurantID      uuid.UUID          `json:"restaurant_id"`
+	RestaurantRating  int16              `json:"restaurant_rating"`
+	RiderRating       *int16             `json:"rider_rating"`
+	Comment           sql.NullString     `json:"comment"`
+	RestaurantReply   sql.NullString     `json:"restaurant_reply"`
+	RestaurantReplyAt pgtype.Timestamptz `json:"restaurant_reply_at"`
+	Images            []string           `json:"images"`
+	IsPublished       bool               `json:"is_published"`
+	CreatedAt         time.Time          `json:"created_at"`
+	UpdatedAt         time.Time          `json:"updated_at"`
+}
+
+type Rider struct {
+	ID                  uuid.UUID      `json:"id"`
+	UserID              uuid.UUID      `json:"user_id"`
+	TenantID            uuid.UUID      `json:"tenant_id"`
+	HubID               pgtype.UUID    `json:"hub_id"`
+	VehicleType         VehicleType    `json:"vehicle_type"`
+	VehicleRegistration sql.NullString `json:"vehicle_registration"`
+	LicenseNumber       sql.NullString `json:"license_number"`
+	NidNumber           sql.NullString `json:"nid_number"`
+	NidVerified         bool           `json:"nid_verified"`
+	IsAvailable         bool           `json:"is_available"`
+	IsOnDuty            bool           `json:"is_on_duty"`
+	TotalOrderCount     int32          `json:"total_order_count"`
+	TotalEarnings       pgtype.Numeric `json:"total_earnings"`
+	PendingBalance      pgtype.Numeric `json:"pending_balance"`
+	RatingAvg           pgtype.Numeric `json:"rating_avg"`
+	RatingCount         int32          `json:"rating_count"`
+	CreatedAt           time.Time      `json:"created_at"`
+	UpdatedAt           time.Time      `json:"updated_at"`
+}
+
+type RiderAttendance struct {
+	ID              uuid.UUID          `json:"id"`
+	RiderID         uuid.UUID          `json:"rider_id"`
+	TenantID        uuid.UUID          `json:"tenant_id"`
+	WorkDate        pgtype.Date        `json:"work_date"`
+	CheckedInAt     pgtype.Timestamptz `json:"checked_in_at"`
+	CheckedOutAt    pgtype.Timestamptz `json:"checked_out_at"`
+	TotalHours      pgtype.Numeric     `json:"total_hours"`
+	TotalDistanceKm pgtype.Numeric     `json:"total_distance_km"`
+	CompletedOrders int32              `json:"completed_orders"`
+	CancelledOrders int32              `json:"cancelled_orders"`
+	Earnings        pgtype.Numeric     `json:"earnings"`
+	CreatedAt       time.Time          `json:"created_at"`
+	UpdatedAt       time.Time          `json:"updated_at"`
+}
+
+type RiderEarning struct {
+	ID            uuid.UUID      `json:"id"`
+	RiderID       uuid.UUID      `json:"rider_id"`
+	TenantID      uuid.UUID      `json:"tenant_id"`
+	OrderID       uuid.UUID      `json:"order_id"`
+	BaseEarning   pgtype.Numeric `json:"base_earning"`
+	DistanceBonus pgtype.Numeric `json:"distance_bonus"`
+	PeakBonus     pgtype.Numeric `json:"peak_bonus"`
+	TipAmount     pgtype.Numeric `json:"tip_amount"`
+	TotalEarning  pgtype.Numeric `json:"total_earning"`
+	IsPaidOut     bool           `json:"is_paid_out"`
+	PayoutID      pgtype.UUID    `json:"payout_id"`
+	CreatedAt     time.Time      `json:"created_at"`
+}
+
+type RiderLocation struct {
+	RiderID        uuid.UUID      `json:"rider_id"`
+	TenantID       uuid.UUID      `json:"tenant_id"`
+	GeoLat         pgtype.Numeric `json:"geo_lat"`
+	GeoLng         pgtype.Numeric `json:"geo_lng"`
+	Heading        pgtype.Numeric `json:"heading"`
+	SpeedKmh       pgtype.Numeric `json:"speed_kmh"`
+	AccuracyMeters pgtype.Numeric `json:"accuracy_meters"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+}
+
+type RiderLocationHistory struct {
+	ID                 uuid.UUID      `json:"id"`
+	RiderID            uuid.UUID      `json:"rider_id"`
+	TenantID           uuid.UUID      `json:"tenant_id"`
+	OrderID            pgtype.UUID    `json:"order_id"`
+	GeoLat             pgtype.Numeric `json:"geo_lat"`
+	GeoLng             pgtype.Numeric `json:"geo_lng"`
+	EventType          RiderSubject   `json:"event_type"`
+	DistanceFromPrevKm pgtype.Numeric `json:"distance_from_prev_km"`
+	CreatedAt          time.Time      `json:"created_at"`
+}
+
+type RiderPayout struct {
+	ID               uuid.UUID          `json:"id"`
+	RiderID          uuid.UUID          `json:"rider_id"`
+	TenantID         uuid.UUID          `json:"tenant_id"`
+	Amount           pgtype.Numeric     `json:"amount"`
+	EarningsFrom     pgtype.Date        `json:"earnings_from"`
+	EarningsTo       pgtype.Date        `json:"earnings_to"`
+	PaymentMethod    string             `json:"payment_method"`
+	PaymentReference sql.NullString     `json:"payment_reference"`
+	Status           PayoutStatus       `json:"status"`
+	ProcessedBy      pgtype.UUID        `json:"processed_by"`
+	ProcessedAt      pgtype.Timestamptz `json:"processed_at"`
+	Note             sql.NullString     `json:"note"`
+	CreatedAt        time.Time          `json:"created_at"`
+	UpdatedAt        time.Time          `json:"updated_at"`
+}
+
+type RiderPenalty struct {
+	ID         uuid.UUID          `json:"id"`
+	RiderID    uuid.UUID          `json:"rider_id"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	OrderID    pgtype.UUID        `json:"order_id"`
+	IssueID    pgtype.UUID        `json:"issue_id"`
+	Reason     string             `json:"reason"`
+	Amount     pgtype.Numeric     `json:"amount"`
+	Status     PenaltyStatus      `json:"status"`
+	AppealNote sql.NullString     `json:"appeal_note"`
+	AppealedAt pgtype.Timestamptz `json:"appealed_at"`
+	ClearedAt  pgtype.Timestamptz `json:"cleared_at"`
+	ClearedBy  pgtype.UUID        `json:"cleared_by"`
+	CreatedAt  time.Time          `json:"created_at"`
+	UpdatedAt  time.Time          `json:"updated_at"`
+}
+
+type Story struct {
+	ID           uuid.UUID          `json:"id"`
+	TenantID     uuid.UUID          `json:"tenant_id"`
+	RestaurantID pgtype.UUID        `json:"restaurant_id"`
+	Title        sql.NullString     `json:"title"`
+	MediaUrl     string             `json:"media_url"`
+	MediaType    MediaType          `json:"media_type"`
+	ThumbnailUrl sql.NullString     `json:"thumbnail_url"`
+	LinkType     NullLinkTargetType `json:"link_type"`
+	LinkValue    sql.NullString     `json:"link_value"`
+	ExpiresAt    time.Time          `json:"expires_at"`
+	SortOrder    int32              `json:"sort_order"`
+	ViewCount    int32              `json:"view_count"`
+	IsActive     bool               `json:"is_active"`
+	CreatedAt    time.Time          `json:"created_at"`
+}
+
+type SubscriptionPlan struct {
+	ID             uuid.UUID       `json:"id"`
+	Name           string          `json:"name"`
+	Slug           string          `json:"slug"`
+	Description    sql.NullString  `json:"description"`
+	PriceMonthly   pgtype.Numeric  `json:"price_monthly"`
+	PriceAnnual    pgtype.Numeric  `json:"price_annual"`
+	MaxRestaurants *int32          `json:"max_restaurants"`
+	MaxRiders      *int32          `json:"max_riders"`
+	CommissionRate pgtype.Numeric  `json:"commission_rate"`
+	Features       json.RawMessage `json:"features"`
+	IsActive       bool            `json:"is_active"`
+	SortOrder      int32           `json:"sort_order"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+}
+
+type Tenant struct {
+	ID                 uuid.UUID       `json:"id"`
+	Slug               string          `json:"slug"`
+	Name               string          `json:"name"`
+	Status             TenantStatus    `json:"status"`
+	Plan               TenantPlan      `json:"plan"`
+	SubscriptionPlanID pgtype.UUID     `json:"subscription_plan_id"`
+	CommissionRate     pgtype.Numeric  `json:"commission_rate"`
+	Settings           json.RawMessage `json:"settings"`
+	CustomDomain       sql.NullString  `json:"custom_domain"`
+	LogoUrl            sql.NullString  `json:"logo_url"`
+	FaviconUrl         sql.NullString  `json:"favicon_url"`
+	PrimaryColor       string          `json:"primary_color"`
+	SecondaryColor     string          `json:"secondary_color"`
+	ContactEmail       string          `json:"contact_email"`
+	ContactPhone       sql.NullString  `json:"contact_phone"`
+	Address            []byte          `json:"address"`
+	Timezone           string          `json:"timezone"`
+	Currency           string          `json:"currency"`
+	Locale             string          `json:"locale"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
+}
+
+type TenantPaymentGateway struct {
+	ID         uuid.UUID       `json:"id"`
+	TenantID   uuid.UUID       `json:"tenant_id"`
+	Gateway    string          `json:"gateway"`
+	IsEnabled  bool            `json:"is_enabled"`
+	IsTestMode bool            `json:"is_test_mode"`
+	Config     json.RawMessage `json:"config"`
+	CreatedAt  time.Time       `json:"created_at"`
+	UpdatedAt  time.Time       `json:"updated_at"`
+}
+
+type TenantSubscription struct {
+	ID                 uuid.UUID          `json:"id"`
+	TenantID           uuid.UUID          `json:"tenant_id"`
+	PlanID             uuid.UUID          `json:"plan_id"`
+	BillingCycle       BillingCycle       `json:"billing_cycle"`
+	Status             SubscriptionStatus `json:"status"`
+	TrialEndsAt        pgtype.Timestamptz `json:"trial_ends_at"`
+	CurrentPeriodStart pgtype.Date        `json:"current_period_start"`
+	CurrentPeriodEnd   pgtype.Date        `json:"current_period_end"`
+	NextBillingDate    pgtype.Date        `json:"next_billing_date"`
+	CancelledAt        pgtype.Timestamptz `json:"cancelled_at"`
+	CancellationReason sql.NullString     `json:"cancellation_reason"`
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
+}
+
+type User struct {
+	ID               uuid.UUID          `json:"id"`
+	TenantID         pgtype.UUID        `json:"tenant_id"`
+	Phone            sql.NullString     `json:"phone"`
+	Email            sql.NullString     `json:"email"`
+	Name             string             `json:"name"`
+	PasswordHash     sql.NullString     `json:"password_hash"`
+	Role             UserRole           `json:"role"`
+	Status           UserStatus         `json:"status"`
+	Gender           NullGenderType     `json:"gender"`
+	DateOfBirth      pgtype.Date        `json:"date_of_birth"`
+	AvatarUrl        sql.NullString     `json:"avatar_url"`
+	DevicePushToken  sql.NullString     `json:"device_push_token"`
+	DevicePlatform   sql.NullString     `json:"device_platform"`
+	DeviceModel      sql.NullString     `json:"device_model"`
+	DeviceAppVersion sql.NullString     `json:"device_app_version"`
+	LastLoginAt      pgtype.Timestamptz `json:"last_login_at"`
+	LastLoginIp      *netip.Addr        `json:"last_login_ip"`
+	EmailVerifiedAt  pgtype.Timestamptz `json:"email_verified_at"`
+	PhoneVerifiedAt  pgtype.Timestamptz `json:"phone_verified_at"`
+	TwoFactorEnabled bool               `json:"two_factor_enabled"`
+	TwoFactorSecret  sql.NullString     `json:"two_factor_secret"`
+	ReferralCode     sql.NullString     `json:"referral_code"`
+	ReferredByID     pgtype.UUID        `json:"referred_by_id"`
+	WalletBalance    pgtype.Numeric     `json:"wallet_balance"`
+	TotalOrderCount  int32              `json:"total_order_count"`
+	TotalSpentAmount pgtype.Numeric     `json:"total_spent_amount"`
+	LastOrderAt      pgtype.Timestamptz `json:"last_order_at"`
+	Metadata         json.RawMessage    `json:"metadata"`
+	CreatedAt        time.Time          `json:"created_at"`
+	UpdatedAt        time.Time          `json:"updated_at"`
+	DeletedAt        pgtype.Timestamptz `json:"deleted_at"`
+}
+
+type UserAddress struct {
+	ID             uuid.UUID      `json:"id"`
+	UserID         uuid.UUID      `json:"user_id"`
+	TenantID       uuid.UUID      `json:"tenant_id"`
+	Label          string         `json:"label"`
+	RecipientName  sql.NullString `json:"recipient_name"`
+	RecipientPhone sql.NullString `json:"recipient_phone"`
+	AddressLine1   string         `json:"address_line1"`
+	AddressLine2   sql.NullString `json:"address_line2"`
+	Area           string         `json:"area"`
+	City           string         `json:"city"`
+	GeoLat         pgtype.Numeric `json:"geo_lat"`
+	GeoLng         pgtype.Numeric `json:"geo_lng"`
+	GeoDisplayAddr sql.NullString `json:"geo_display_addr"`
+	IsDefault      bool           `json:"is_default"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+}
+
+type UserFavourite struct {
+	UserID       uuid.UUID `json:"user_id"`
+	RestaurantID uuid.UUID `json:"restaurant_id"`
+	TenantID     uuid.UUID `json:"tenant_id"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+type WalletTransaction struct {
+	ID           uuid.UUID          `json:"id"`
+	UserID       uuid.UUID          `json:"user_id"`
+	TenantID     uuid.UUID          `json:"tenant_id"`
+	OrderID      pgtype.UUID        `json:"order_id"`
+	Type         WalletType         `json:"type"`
+	Source       WalletSource       `json:"source"`
+	Amount       pgtype.Numeric     `json:"amount"`
+	BalanceAfter pgtype.Numeric     `json:"balance_after"`
+	Description  sql.NullString     `json:"description"`
+	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt    time.Time          `json:"created_at"`
 }
