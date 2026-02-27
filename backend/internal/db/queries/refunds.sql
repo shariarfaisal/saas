@@ -20,7 +20,7 @@ LIMIT 1;
 
 -- name: ListRefundsByOrder :many
 SELECT * FROM refunds
-WHERE order_id = $1
+WHERE order_id = $1 AND tenant_id = $2
 ORDER BY created_at DESC;
 
 -- name: ApproveRefund :one

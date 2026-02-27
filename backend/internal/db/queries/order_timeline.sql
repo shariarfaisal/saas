@@ -7,5 +7,5 @@ RETURNING *;
 
 -- name: ListTimelineByOrder :many
 SELECT * FROM order_timeline_events
-WHERE order_id = $1
+WHERE order_id = $1 AND tenant_id = $2
 ORDER BY created_at DESC;

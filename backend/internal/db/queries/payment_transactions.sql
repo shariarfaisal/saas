@@ -34,7 +34,7 @@ LIMIT 1;
 
 -- name: ListTransactionsByOrder :many
 SELECT * FROM payment_transactions
-WHERE order_id = $1
+WHERE order_id = $1 AND tenant_id = $2
 ORDER BY created_at DESC;
 
 -- name: ListPendingTransactions :many
