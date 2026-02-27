@@ -453,6 +453,99 @@ func (ns NullIssueType) Value() (driver.Value, error) {
 	return string(ns.IssueType), nil
 }
 
+type LedgerAccountType string
+
+const (
+	LedgerAccountTypeAsset     LedgerAccountType = "asset"
+	LedgerAccountTypeLiability LedgerAccountType = "liability"
+	LedgerAccountTypeRevenue   LedgerAccountType = "revenue"
+	LedgerAccountTypeExpense   LedgerAccountType = "expense"
+)
+
+func (e *LedgerAccountType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = LedgerAccountType(s)
+	case string:
+		*e = LedgerAccountType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for LedgerAccountType: %T", src)
+	}
+	return nil
+}
+
+type NullLedgerAccountType struct {
+	LedgerAccountType LedgerAccountType `json:"ledger_account_type"`
+	Valid             bool              `json:"valid"` // Valid is true if LedgerAccountType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullLedgerAccountType) Scan(value interface{}) error {
+	if value == nil {
+		ns.LedgerAccountType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.LedgerAccountType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullLedgerAccountType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.LedgerAccountType), nil
+}
+
+type LedgerEntryType string
+
+const (
+	LedgerEntryTypeOrderRevenue LedgerEntryType = "order_revenue"
+	LedgerEntryTypeCommission   LedgerEntryType = "commission"
+	LedgerEntryTypeRefund       LedgerEntryType = "refund"
+	LedgerEntryTypeWalletCredit LedgerEntryType = "wallet_credit"
+	LedgerEntryTypeWalletDebit  LedgerEntryType = "wallet_debit"
+	LedgerEntryTypeVendorPayout LedgerEntryType = "vendor_payout"
+	LedgerEntryTypeDeliveryFee  LedgerEntryType = "delivery_fee"
+	LedgerEntryTypePenalty      LedgerEntryType = "penalty"
+	LedgerEntryTypeAdjustment   LedgerEntryType = "adjustment"
+)
+
+func (e *LedgerEntryType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = LedgerEntryType(s)
+	case string:
+		*e = LedgerEntryType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for LedgerEntryType: %T", src)
+	}
+	return nil
+}
+
+type NullLedgerEntryType struct {
+	LedgerEntryType LedgerEntryType `json:"ledger_entry_type"`
+	Valid           bool            `json:"valid"` // Valid is true if LedgerEntryType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullLedgerEntryType) Scan(value interface{}) error {
+	if value == nil {
+		ns.LedgerEntryType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.LedgerEntryType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullLedgerEntryType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.LedgerEntryType), nil
+}
+
 type LinkTargetType string
 
 const (
@@ -1737,6 +1830,20 @@ func (ns NullWalletType) Value() (driver.Value, error) {
 	return string(ns.WalletType), nil
 }
 
+type AuditLog struct {
+	ID           uuid.UUID       `json:"id"`
+	TenantID     pgtype.UUID     `json:"tenant_id"`
+	ActorID      pgtype.UUID     `json:"actor_id"`
+	ActorType    ActorType       `json:"actor_type"`
+	Action       string          `json:"action"`
+	ResourceType string          `json:"resource_type"`
+	ResourceID   pgtype.UUID     `json:"resource_id"`
+	Changes      json.RawMessage `json:"changes"`
+	Reason       sql.NullString  `json:"reason"`
+	IpAddress    *netip.Addr     `json:"ip_address"`
+	CreatedAt    time.Time       `json:"created_at"`
+}
+
 type Banner struct {
 	ID             uuid.UUID          `json:"id"`
 	TenantID       uuid.UUID          `json:"tenant_id"`
@@ -1906,6 +2013,31 @@ type Invoice struct {
 	Notes                sql.NullString     `json:"notes"`
 	CreatedAt            time.Time          `json:"created_at"`
 	UpdatedAt            time.Time          `json:"updated_at"`
+}
+
+type LedgerAccount struct {
+	ID          uuid.UUID         `json:"id"`
+	Code        string            `json:"code"`
+	Name        string            `json:"name"`
+	AccountType LedgerAccountType `json:"account_type"`
+	Description sql.NullString    `json:"description"`
+	IsSystem    bool              `json:"is_system"`
+	CreatedAt   time.Time         `json:"created_at"`
+}
+
+type LedgerEntry struct {
+	ID            uuid.UUID       `json:"id"`
+	TenantID      pgtype.UUID     `json:"tenant_id"`
+	AccountID     uuid.UUID       `json:"account_id"`
+	EntryType     LedgerEntryType `json:"entry_type"`
+	ReferenceType string          `json:"reference_type"`
+	ReferenceID   uuid.UUID       `json:"reference_id"`
+	Debit         pgtype.Numeric  `json:"debit"`
+	Credit        pgtype.Numeric  `json:"credit"`
+	BalanceAfter  pgtype.Numeric  `json:"balance_after"`
+	Description   string          `json:"description"`
+	Metadata      json.RawMessage `json:"metadata"`
+	CreatedAt     time.Time       `json:"created_at"`
 }
 
 type Notification struct {
@@ -2512,6 +2644,17 @@ type RiderPenalty struct {
 	ClearedBy  pgtype.UUID        `json:"cleared_by"`
 	CreatedAt  time.Time          `json:"created_at"`
 	UpdatedAt  time.Time          `json:"updated_at"`
+}
+
+type SearchLog struct {
+	ID          uuid.UUID       `json:"id"`
+	TenantID    uuid.UUID       `json:"tenant_id"`
+	UserID      pgtype.UUID     `json:"user_id"`
+	Query       string          `json:"query"`
+	SearchType  string          `json:"search_type"`
+	ResultCount int32           `json:"result_count"`
+	Filters     json.RawMessage `json:"filters"`
+	CreatedAt   time.Time       `json:"created_at"`
 }
 
 type Story struct {
