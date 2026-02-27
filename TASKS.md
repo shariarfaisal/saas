@@ -34,28 +34,28 @@
 
 ## PHASE 1 — Multi-Tenancy & Authentication
 
-- [ ] **TASK-008 — Tenants table, SQLC queries & seed**
+- [x] **TASK-008 — Tenants table, SQLC queries & seed**
       Write migration for `tenants` table; SQLC queries: `CreateTenant`, `GetTenantBySlug`, `GetTenantByID`, `GetTenantByDomain`, `UpdateTenant`, `UpdateTenantStatus`, `ListTenants`; write a seed script for one dev tenant.
 
-- [ ] **TASK-009 — Tenant resolver middleware**
+- [x] **TASK-009 — Tenant resolver middleware**
       Implement three tenant-resolution strategies in order: (1) subdomain from `Host` header, (2) `tenant_id` JWT claim, (3) `X-Tenant-ID` header (API-key-only); cache resolved tenant in Redis for 60s; inject `TenantContext` into request context; return 403 for suspended/cancelled tenants.
 
-- [ ] **TASK-010 — Users & addresses tables, SQLC queries**
+- [x] **TASK-010 — Users & addresses tables, SQLC queries**
       Write migration for `users`, `user_addresses`, `otp_verifications`; SQLC queries: `CreateUser`, `GetUserByPhone`, `GetUserByEmail`, `GetUserByID`, `UpdateUser`, `SoftDeleteUser`, `CreateAddress`, `ListAddresses`, `UpdateAddress`, `DeleteAddress`; add `SetDefaultAddress` logic.
 
-- [ ] **TASK-011 — OTP authentication (customer & rider)**
+- [x] **TASK-011 — OTP authentication (customer & rider)**
       Implement `POST /api/v1/auth/otp/send` (generate 6-digit OTP, store hashed, send via SMS adapter, rate-limit 3/phone/10min) and `POST /api/v1/auth/otp/verify` (verify hash, create user if first-time, return JWT access+refresh tokens as httpOnly cookies + JSON body).
 
-- [ ] **TASK-012 — Email+password authentication (partner & admin)**
+- [x] **TASK-012 — Email+password authentication (partner & admin)**
       Implement `POST /api/v1/auth/login` (email+password, bcrypt compare, role-check, return JWTs), `POST /api/v1/auth/refresh` (rotate refresh token), `POST /api/v1/auth/logout` (invalidate refresh token via Redis deny-list), `POST /api/v1/auth/password/reset-request` + `POST /api/v1/auth/password/reset` (email-link flow).
 
-- [ ] **TASK-013 — JWT middleware & RBAC**
+- [x] **TASK-013 — JWT middleware & RBAC**
       Implement JWT validation middleware (parse access token, verify signature, check deny-list); implement `RequireRoles(...role)` middleware guard; implement `RequireTenantMatch()` guard (user.tenant_id must match resolved tenant except super-admin); attach `UserContext` to request.
 
-- [ ] **TASK-014 — Idempotency key infrastructure**
+- [x] **TASK-014 — Idempotency key infrastructure**
       Write migration for `idempotency_keys` table; implement Go middleware that reads `Idempotency-Key` header on POST/PATCH, checks DB for existing response (same key + matching hash → replay, different hash → 409), stores new response snapshot after handler completes; apply to `/orders` and payment endpoints.
 
-- [ ] **TASK-015 — Current user API & profile management**
+- [x] **TASK-015 — Current user API & profile management**
       Implement `GET /api/v1/me` (profile), `PATCH /api/v1/me` (update name/email/avatar/dob/gender), `GET/POST/PUT/DELETE /api/v1/me/addresses`, `GET /api/v1/me/wallet` (balance + paginated wallet transactions), `GET /api/v1/me/notifications`, `PATCH /api/v1/me/notifications/:id/read`.
 
 ---
