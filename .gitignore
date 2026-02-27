@@ -62,3 +62,5 @@ openspec/archive/
 
 # System files
 .system/
+
+backend/bin/
