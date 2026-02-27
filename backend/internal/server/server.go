@@ -6,10 +6,14 @@ import (
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/munchies/platform/backend/internal/config"
 	"github.com/munchies/platform/backend/internal/db/sqlc"
 	"github.com/munchies/platform/backend/internal/middleware"
 	authmod "github.com/munchies/platform/backend/internal/modules/auth"
+	inventorymod "github.com/munchies/platform/backend/internal/modules/inventory"
+	ordermod "github.com/munchies/platform/backend/internal/modules/order"
+	promomod "github.com/munchies/platform/backend/internal/modules/promo"
 	tenantmod "github.com/munchies/platform/backend/internal/modules/tenant"
 	usermod "github.com/munchies/platform/backend/internal/modules/user"
 	redisclient "github.com/munchies/platform/backend/internal/platform/redis"
@@ -20,6 +24,7 @@ import (
 // Deps holds all external dependencies required by the server.
 type Deps struct {
 	Queries *sqlc.Queries
+	Pool    *pgxpool.Pool
 	Redis   *redisclient.Client
 	SMS     sms.Sender
 }
@@ -90,6 +95,18 @@ func (s *Server) registerRoutes(deps Deps) {
 	userSvc := usermod.NewService(userRepo)
 	userHandler := usermod.NewHandler(userSvc)
 
+	// Inventory module
+	inventorySvc := inventorymod.NewService(deps.Queries)
+	inventoryHandler := inventorymod.NewHandler(inventorySvc)
+
+	// Promo module
+	promoSvc := promomod.NewService(deps.Queries)
+	promoHandler := promomod.NewHandler(promoSvc)
+
+	// Order module
+	orderSvc := ordermod.NewService(deps.Queries, deps.Pool, inventorySvc, promoSvc)
+	orderHandler := ordermod.NewHandler(orderSvc)
+
 	// API v1 routes
 	r.Route("/api/v1", func(r chi.Router) {
 		log.Debug().Msg("API v1 routes registered")
@@ -123,6 +140,61 @@ func (s *Server) registerRoutes(deps Deps) {
 				r.Get("/wallet", userHandler.ListWallet)
 				r.Get("/notifications", userHandler.ListNotifications)
 				r.Patch("/notifications/{id}/read", userHandler.MarkNotificationRead)
+				r.Get("/orders", orderHandler.ListMyOrders)
+			})
+
+			// Order endpoints (customer)
+			r.Route("/orders", func(r chi.Router) {
+				r.Post("/charges/calculate", orderHandler.CalculateCharges)
+				r.Post("/", orderHandler.CreateOrder)
+				r.Get("/{id}", orderHandler.GetOrder)
+				r.Get("/{id}/tracking", orderHandler.TrackOrder)
+				r.Patch("/{id}/cancel", orderHandler.CancelOrder)
+			})
+
+			// Partner endpoints
+			r.Route("/partner", func(r chi.Router) {
+				r.Use(authmod.RequireRoles(
+					sqlc.UserRoleTenantOwner,
+					sqlc.UserRoleTenantAdmin,
+					sqlc.UserRoleRestaurantManager,
+					sqlc.UserRoleRestaurantStaff,
+				))
+
+				r.Route("/inventory", func(r chi.Router) {
+					inventoryHandler.RegisterRoutes(r)
+				})
+				r.Route("/promos", func(r chi.Router) {
+					promoHandler.RegisterRoutes(r)
+				})
+				r.Route("/orders", func(r chi.Router) {
+					r.Get("/", orderHandler.ListPartnerOrders)
+					r.Patch("/{id}/confirm", orderHandler.ConfirmOrderPartner)
+					r.Patch("/{id}/reject", orderHandler.RejectOrderPartner)
+					r.Patch("/{id}/preparing", orderHandler.PreparingOrderPartner)
+					r.Patch("/{id}/ready", orderHandler.ReadyOrderPartner)
+				})
+			})
+
+			// Rider endpoints
+			r.Route("/rider", func(r chi.Router) {
+				r.Use(authmod.RequireRoles(sqlc.UserRoleRider))
+
+				r.Route("/orders", func(r chi.Router) {
+					r.Patch("/{id}/picked/{restaurantID}", orderHandler.PickedByRider)
+				})
+			})
+
+			// Admin endpoints
+			r.Route("/admin", func(r chi.Router) {
+				r.Use(authmod.RequireRoles(
+					sqlc.UserRolePlatformAdmin,
+					sqlc.UserRolePlatformSupport,
+				))
+
+				r.Route("/orders", func(r chi.Router) {
+					r.Patch("/{id}/force-cancel", orderHandler.ForceCancelOrder)
+				})
 			})
 		})
 	})
