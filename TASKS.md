@@ -279,31 +279,31 @@
 
 ## PHASE 15 — Super Admin Panel (Next.js)
 
-- [ ] **TASK-071 — Admin portal project setup**
+- [x] **TASK-071 — Admin portal project setup**
       Initialise `admin/` Next.js 14 app (TypeScript, Tailwind, shadcn/ui, TanStack Query, Zustand, React Hook Form + Zod); configure API client (base URL, auth interceptor, token refresh, error handling); add `X-Request-ID` header to all requests; ESLint + Prettier.
 
-- [ ] **TASK-072 — Admin auth (login, 2FA, session management)**
+- [x] **TASK-072 — Admin auth (login, 2FA, session management)**
       Build login page (email + password); mandatory 2FA TOTP flow (QR code setup on first login, TOTP verification on subsequent logins); JWT stored in httpOnly cookie; Zustand auth store; protect all routes via server-side session check; logout + session expiry handling.
 
-- [ ] **TASK-073 — Admin platform dashboard page**
+- [x] **TASK-073 — Admin platform dashboard page**
       Build dashboard: global KPI cards (total orders today, total commission, active tenants, active riders); revenue trend chart (Recharts); active tenant table with status indicators; system health section (API latency + error rate fetched from `/admin/analytics/overview`).
 
-- [ ] **TASK-074 — Tenant management pages (list, create, edit, suspend)**
+- [x] **TASK-074 — Tenant management pages (list, create, edit, suspend)**
       Build tenant list (sortable table: name, plan, status, order count, commission rate, date); tenant create form (all fields including plan, commission, slug); tenant detail/edit page; suspend/reinstate modal with reason; tenant analytics drill-down; impersonate button (opens partner portal in new tab).
 
-- [ ] **TASK-075 — User management page (cross-tenant)**
+- [x] **TASK-075 — User management page (cross-tenant)**
       Build user search page (search by phone/email/name with tenant filter); user detail drawer (profile, order summary, account status); suspend user action with reason; GDPR delete flow with confirmation and data-wipe status.
 
-- [ ] **TASK-076 — Admin order management (cross-tenant)**
+- [x] **TASK-076 — Admin order management (cross-tenant)**
       Build orders page with tenant + status + date filters; order detail modal with full timeline, payment events, rider history, and audit entries; force status override action (dropdown + mandatory reason); link to issue resolution.
 
-- [ ] **TASK-077 — Finance management (commissions, invoices, payouts)**
+- [x] **TASK-077 — Finance management (commissions, invoices, payouts)**
       Build commission ledger page (all tenants, period filter, CSV export); invoice list with generate-invoice action; invoice detail with approve/finalize/mark-paid actions; payout tracking table with settlement status.
 
-- [ ] **TASK-078 — Issues & dispute resolution page**
+- [x] **TASK-078 — Issues & dispute resolution page**
       Build issues queue (filter by status/tenant/type); issue detail page with full order context, message thread, refund amount input, accountable party selector, approve/reject buttons; resolved issues history.
 
-- [ ] **TASK-079 — Platform config & feature flags page**
+- [x] **TASK-079 — Platform config & feature flags page**
       Build settings page: global feature toggles, payment gateway config (credentials, test/live toggle), SMS/email provider config, maintenance mode toggle with confirmation; all changes create audit log.
 
 ---
