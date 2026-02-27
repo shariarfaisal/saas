@@ -19,6 +19,7 @@ import (
 	mediamod "github.com/munchies/platform/backend/internal/modules/media"
 	paymentmod "github.com/munchies/platform/backend/internal/modules/payment"
 	restaurantmod "github.com/munchies/platform/backend/internal/modules/restaurant"
+	ridermod "github.com/munchies/platform/backend/internal/modules/rider"
 	storefrontmod "github.com/munchies/platform/backend/internal/modules/storefront"
 	tenantmod "github.com/munchies/platform/backend/internal/modules/tenant"
 	usermod "github.com/munchies/platform/backend/internal/modules/user"
@@ -144,6 +145,11 @@ func (s *Server) registerRoutes(deps Deps) {
 	}
 	paymentHandler := paymentmod.NewHandler(paymentSvc, callbackBaseURL)
 
+	// Rider module
+	riderSvc := ridermod.NewService(deps.Queries)
+	riderHandler := ridermod.NewHandler(riderSvc)
+	riderWSHandler := ridermod.NewWSHandler(deps.Queries, tokenCfg, deps.Redis)
+
 	// Reconciliation job
 	s.reconciliationJob = paymentmod.NewReconciliationJob(deps.Queries, paymentGateways)
 
@@ -216,6 +222,18 @@ func (s *Server) registerRoutes(deps Deps) {
 
 		// Media upload
 		r.Post("/media/upload", mediaHandler.Upload)
+
+		// Rider-facing routes (authenticated, rider role)
+		r.Route("/rider", func(r chi.Router) {
+			r.Use(authMiddleware.Authenticate)
+
+			r.Post("/attendance/checkin", riderHandler.CheckIn)
+			r.Post("/attendance/checkout", riderHandler.CheckOut)
+			r.Patch("/availability", riderHandler.UpdateAvailability)
+		})
+
+		// Rider WebSocket (custom auth via query param)
+		r.Get("/rider/ws", riderWSHandler.HandleWS)
 	})
 
 	// Partner routes (authenticated, role-restricted)
@@ -270,6 +288,14 @@ func (s *Server) registerRoutes(deps Deps) {
 
 		// Order refund
 		r.Post("/orders/{id}/refund", paymentHandler.ProcessRefund)
+
+		// Rider management
+		r.Get("/riders", riderHandler.ListRiders)
+		r.Post("/riders", riderHandler.CreateRider)
+		r.Get("/riders/attendance", riderHandler.ListAttendance)
+		r.Get("/riders/{id}", riderHandler.GetRider)
+		r.Put("/riders/{id}", riderHandler.UpdateRider)
+		r.Delete("/riders/{id}", riderHandler.DeleteRider)
 	})
 }
 

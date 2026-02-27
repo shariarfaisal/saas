@@ -58,6 +58,11 @@ func (c *Client) Expire(ctx context.Context, key string, ttl time.Duration) erro
 	return c.rdb.Expire(ctx, key, ttl).Err()
 }
 
+// Publish publishes a message to a Redis channel.
+func (c *Client) Publish(ctx context.Context, channel string, message interface{}) error {
+	return c.rdb.Publish(ctx, channel, message).Err()
+}
+
 // Close closes the connection.
 func (c *Client) Close() error {
 	return c.rdb.Close()
