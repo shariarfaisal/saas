@@ -72,6 +72,11 @@ func main() {
 
 	srv := server.New(cfg, deps)
 
+	// Start background jobs (reconciliation, etc.)
+	jobCtx, jobCancel := context.WithCancel(ctx)
+	defer jobCancel()
+	srv.StartBackgroundJobs(jobCtx)
+
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
 		Handler:      srv.Router(),

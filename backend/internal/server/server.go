@@ -1,7 +1,10 @@
 package server
 
 import (
+	"context"
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
@@ -14,10 +17,15 @@ import (
 	deliverymod "github.com/munchies/platform/backend/internal/modules/delivery"
 	hubmod "github.com/munchies/platform/backend/internal/modules/hub"
 	mediamod "github.com/munchies/platform/backend/internal/modules/media"
+	paymentmod "github.com/munchies/platform/backend/internal/modules/payment"
 	restaurantmod "github.com/munchies/platform/backend/internal/modules/restaurant"
+	ridermod "github.com/munchies/platform/backend/internal/modules/rider"
 	storefrontmod "github.com/munchies/platform/backend/internal/modules/storefront"
 	tenantmod "github.com/munchies/platform/backend/internal/modules/tenant"
 	usermod "github.com/munchies/platform/backend/internal/modules/user"
+	gatewaypkg "github.com/munchies/platform/backend/internal/platform/payment"
+	"github.com/munchies/platform/backend/internal/platform/payment/aamarpay"
+	"github.com/munchies/platform/backend/internal/platform/payment/bkash"
 	redisclient "github.com/munchies/platform/backend/internal/platform/redis"
 	"github.com/munchies/platform/backend/internal/platform/sms"
 	"github.com/rs/zerolog/log"
@@ -32,8 +40,9 @@ type Deps struct {
 
 // Server holds the HTTP router and dependencies.
 type Server struct {
-	router chi.Router
-	cfg    *config.Config
+	router           chi.Router
+	cfg              *config.Config
+	reconciliationJob *paymentmod.ReconciliationJob
 }
 
 // New creates a new Server with all routes and middleware configured.
@@ -116,6 +125,34 @@ func (s *Server) registerRoutes(deps Deps) {
 
 	mediaHandler := mediamod.NewHandler()
 
+	// Payment gateways
+	paymentGateways := map[sqlc.PaymentMethod]gatewaypkg.Gateway{
+		sqlc.PaymentMethodBkash: bkash.New(bkash.Config{
+			AppKey:    s.cfg.Services.BkashAppKey,
+			AppSecret: s.cfg.Services.BkashAppSecret,
+			BaseURL:   s.cfg.Services.BkashBaseURL,
+		}),
+		sqlc.PaymentMethodAamarpay: aamarpay.New(aamarpay.Config{
+			StoreID:      s.cfg.Services.AamarPayStoreID,
+			SignatureKey: s.cfg.Services.AamarPayAPIKey,
+			BaseURL:      s.cfg.Services.AamarPayBaseURL,
+		}),
+	}
+	paymentSvc := paymentmod.NewService(deps.Queries, paymentGateways)
+	callbackBaseURL := s.cfg.Server.PublicBaseURL
+	if callbackBaseURL == "" {
+		callbackBaseURL = fmt.Sprintf("http://localhost:%d", s.cfg.Server.Port)
+	}
+	paymentHandler := paymentmod.NewHandler(paymentSvc, callbackBaseURL)
+
+	// Rider module
+	riderSvc := ridermod.NewService(deps.Queries)
+	riderHandler := ridermod.NewHandler(riderSvc)
+	riderWSHandler := ridermod.NewWSHandler(deps.Queries, tokenCfg, deps.Redis)
+
+	// Reconciliation job
+	s.reconciliationJob = paymentmod.NewReconciliationJob(deps.Queries, paymentGateways)
+
 	partnerRoles := authmod.RequireRoles(
 		sqlc.UserRoleTenantOwner,
 		sqlc.UserRoleTenantAdmin,
@@ -169,8 +206,45 @@ func (s *Server) registerRoutes(deps Deps) {
 		// Delivery charge calculation (public)
 		r.Post("/orders/charges/calculate", deliveryHandler.CalculateCharge)
 
+		// Payment callbacks (no auth required — called by gateways)
+		r.Get("/payments/bkash/callback", paymentHandler.BkashCallback)
+		r.Post("/payments/aamarpay/success", paymentHandler.AamarpaySuccess)
+		r.Post("/payments/aamarpay/fail", paymentHandler.AamarpayFail)
+		r.Post("/payments/aamarpay/cancel", paymentHandler.AamarpayCancel)
+
+		// Payment initiation (authenticated)
+		r.Group(func(r chi.Router) {
+			r.Use(authMiddleware.Authenticate)
+
+			r.Post("/payments/bkash/initiate", paymentHandler.InitiateBkash)
+			r.Post("/payments/aamarpay/initiate", paymentHandler.InitiateAamarpay)
+		})
+
 		// Media upload
 		r.Post("/media/upload", mediaHandler.Upload)
+
+		// Rider-facing routes (authenticated, rider role)
+		r.Route("/rider", func(r chi.Router) {
+			r.Use(authMiddleware.Authenticate)
+
+			r.Post("/attendance/checkin", riderHandler.CheckIn)
+			r.Post("/attendance/checkout", riderHandler.CheckOut)
+			r.Patch("/availability", riderHandler.UpdateAvailability)
+
+			// Order flow
+			r.Get("/orders/active", riderHandler.ListActiveOrders)
+			r.Patch("/orders/{id}/accept", riderHandler.AcceptOrder)
+			r.Patch("/orders/{id}/picked/{restaurant_id}", riderHandler.MarkPickupPicked)
+			r.Patch("/orders/{id}/delivered", riderHandler.MarkDelivered)
+			r.Patch("/orders/{id}/issue", riderHandler.ReportIssue)
+
+			// Earnings & history
+			r.Get("/earnings", riderHandler.ListEarnings)
+			r.Get("/history", riderHandler.ListDeliveryHistory)
+		})
+
+		// Rider WebSocket (custom auth via query param)
+		r.Get("/rider/ws", riderWSHandler.HandleWS)
 	})
 
 	// Partner routes (authenticated, role-restricted)
@@ -222,6 +296,25 @@ func (s *Server) registerRoutes(deps Deps) {
 
 		// Menu duplication
 		r.Post("/restaurants/{id}/menu/duplicate", catalogHandler.DuplicateMenu)
+
+		// Order refund
+		r.Post("/orders/{id}/refund", paymentHandler.ProcessRefund)
+
+		// Order rider assignment
+		r.Post("/orders/{id}/assign-rider", riderHandler.ManualAssignRider)
+
+		// Rider management
+		r.Get("/riders", riderHandler.ListRiders)
+		r.Post("/riders", riderHandler.CreateRider)
+		r.Get("/riders/attendance", riderHandler.ListAttendance)
+		r.Get("/riders/tracking", riderHandler.ListRiderTracking)
+		r.Get("/riders/{id}", riderHandler.GetRider)
+		r.Put("/riders/{id}", riderHandler.UpdateRider)
+		r.Delete("/riders/{id}", riderHandler.DeleteRider)
+		r.Get("/riders/{id}/travel-log", riderHandler.GetTravelLog)
+		r.Get("/riders/{id}/penalties", riderHandler.ListPenalties)
+		r.Post("/riders/{id}/penalties", riderHandler.CreatePenalty)
+		r.Patch("/riders/{id}/penalties/{penalty_id}", riderHandler.UpdatePenalty)
 	})
 }
 
@@ -237,5 +330,13 @@ func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"status":"ready"}`))
+}
+
+// StartBackgroundJobs launches background goroutines such as payment reconciliation.
+// The provided context controls the lifecycle of all background jobs.
+func (s *Server) StartBackgroundJobs(ctx context.Context) {
+	if s.reconciliationJob != nil {
+		go s.reconciliationJob.StartReconciliation(ctx, 5*time.Minute)
+	}
 }
 

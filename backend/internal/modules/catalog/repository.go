@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/munchies/platform/backend/internal/db/sqlc"
 )
 
@@ -37,7 +38,7 @@ func (r *Repository) GetCategoryByID(ctx context.Context, id, tenantID uuid.UUID
 
 func (r *Repository) ListCategoriesByRestaurant(ctx context.Context, restaurantID, tenantID uuid.UUID) ([]sqlc.Category, error) {
 	return r.q.ListCategoriesByRestaurant(ctx, sqlc.ListCategoriesByRestaurantParams{
-		RestaurantID: restaurantID,
+		RestaurantID: pgtype.UUID{Bytes: restaurantID, Valid: true},
 		TenantID:     tenantID,
 	})
 }
