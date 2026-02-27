@@ -11,9 +11,15 @@ import (
 	"github.com/munchies/platform/backend/internal/db/sqlc"
 	"github.com/munchies/platform/backend/internal/middleware"
 	authmod "github.com/munchies/platform/backend/internal/modules/auth"
+	catalogmod "github.com/munchies/platform/backend/internal/modules/catalog"
+	deliverymod "github.com/munchies/platform/backend/internal/modules/delivery"
+	hubmod "github.com/munchies/platform/backend/internal/modules/hub"
 	inventorymod "github.com/munchies/platform/backend/internal/modules/inventory"
+	mediamod "github.com/munchies/platform/backend/internal/modules/media"
 	ordermod "github.com/munchies/platform/backend/internal/modules/order"
 	promomod "github.com/munchies/platform/backend/internal/modules/promo"
+	restaurantmod "github.com/munchies/platform/backend/internal/modules/restaurant"
+	storefrontmod "github.com/munchies/platform/backend/internal/modules/storefront"
 	tenantmod "github.com/munchies/platform/backend/internal/modules/tenant"
 	usermod "github.com/munchies/platform/backend/internal/modules/user"
 	redisclient "github.com/munchies/platform/backend/internal/platform/redis"
@@ -95,6 +101,32 @@ func (s *Server) registerRoutes(deps Deps) {
 	userSvc := usermod.NewService(userRepo)
 	userHandler := usermod.NewHandler(userSvc)
 
+	// Hub module
+	hubRepo := hubmod.NewRepository(deps.Queries)
+	hubSvc := hubmod.NewService(hubRepo)
+	hubHandler := hubmod.NewHandler(hubSvc)
+
+	// Restaurant module
+	restaurantRepo := restaurantmod.NewRepository(deps.Queries)
+	restaurantSvc := restaurantmod.NewService(restaurantRepo)
+	restaurantHandler := restaurantmod.NewHandler(restaurantSvc)
+
+	// Catalog module
+	catalogRepo := catalogmod.NewRepository(deps.Queries)
+	catalogSvc := catalogmod.NewService(catalogRepo)
+	catalogHandler := catalogmod.NewHandler(catalogSvc)
+
+	// Storefront module
+	storefrontSvc := storefrontmod.NewService(deps.Queries)
+	storefrontHandler := storefrontmod.NewHandler(storefrontSvc)
+
+	// Delivery module
+	deliverySvc := deliverymod.NewService(deps.Queries)
+	deliveryHandler := deliverymod.NewHandler(deliverySvc)
+
+	// Media module
+	mediaHandler := mediamod.NewHandler()
+
 	// Inventory module
 	inventorySvc := inventorymod.NewService(deps.Queries)
 	inventoryHandler := inventorymod.NewHandler(inventorySvc)
@@ -106,6 +138,13 @@ func (s *Server) registerRoutes(deps Deps) {
 	// Order module
 	orderSvc := ordermod.NewService(deps.Queries, deps.Pool, inventorySvc, promoSvc)
 	orderHandler := ordermod.NewHandler(orderSvc)
+
+	partnerRoles := authmod.RequireRoles(
+		sqlc.UserRoleTenantOwner,
+		sqlc.UserRoleTenantAdmin,
+		sqlc.UserRoleRestaurantManager,
+		sqlc.UserRoleRestaurantStaff,
+	)
 
 	// API v1 routes
 	r.Route("/api/v1", func(r chi.Router) {
@@ -124,6 +163,19 @@ func (s *Server) registerRoutes(deps Deps) {
 			r.Post("/password/reset-request", authHandler.RequestPasswordReset)
 			r.Post("/password/reset", authHandler.ResetPassword)
 		})
+
+		// Public storefront routes
+		r.Get("/storefront/config", storefrontHandler.GetConfig)
+		r.Get("/storefront/areas", storefrontHandler.ListAreas)
+		r.Get("/storefront/restaurants", storefrontHandler.ListRestaurants)
+		r.Get("/restaurants/{slug}", storefrontHandler.GetRestaurant)
+		r.Get("/products/{id}", storefrontHandler.GetProduct)
+
+		// Delivery charge calculation (public)
+		r.Post("/delivery/charges", deliveryHandler.CalculateCharge)
+
+		// Media upload
+		r.Post("/media/upload", mediaHandler.Upload)
 
 		// Authenticated routes
 		r.Group(func(r chi.Router) {
@@ -154,19 +206,63 @@ func (s *Server) registerRoutes(deps Deps) {
 
 			// Partner endpoints
 			r.Route("/partner", func(r chi.Router) {
-				r.Use(authmod.RequireRoles(
-					sqlc.UserRoleTenantOwner,
-					sqlc.UserRoleTenantAdmin,
-					sqlc.UserRoleRestaurantManager,
-					sqlc.UserRoleRestaurantStaff,
-				))
+				r.Use(partnerRoles)
 
+				// Hub management
+				r.Get("/hubs", hubHandler.ListHubs)
+				r.Post("/hubs", hubHandler.CreateHub)
+				r.Get("/hubs/{id}", hubHandler.GetHub)
+				r.Put("/hubs/{id}", hubHandler.UpdateHub)
+				r.Delete("/hubs/{id}", hubHandler.DeleteHub)
+				r.Get("/hubs/{id}/areas", hubHandler.ListHubAreas)
+				r.Post("/hubs/{id}/areas", hubHandler.CreateHubArea)
+				r.Put("/hubs/{id}/areas/{area_id}", hubHandler.UpdateHubArea)
+				r.Delete("/hubs/{id}/areas/{area_id}", hubHandler.DeleteHubArea)
+				r.Get("/delivery/config", hubHandler.GetDeliveryZoneConfig)
+				r.Put("/delivery/config", hubHandler.UpsertDeliveryZoneConfig)
+
+				// Restaurant management
+				r.Get("/restaurants", restaurantHandler.ListRestaurants)
+				r.Post("/restaurants", restaurantHandler.CreateRestaurant)
+				r.Get("/restaurants/{id}", restaurantHandler.GetRestaurant)
+				r.Put("/restaurants/{id}", restaurantHandler.UpdateRestaurant)
+				r.Delete("/restaurants/{id}", restaurantHandler.DeleteRestaurant)
+				r.Patch("/restaurants/{id}/availability", restaurantHandler.UpdateAvailability)
+				r.Get("/restaurants/{id}/hours", restaurantHandler.GetOperatingHours)
+				r.Put("/restaurants/{id}/hours", restaurantHandler.UpsertOperatingHours)
+
+				// Category management
+				r.Get("/restaurants/{id}/categories", catalogHandler.ListCategories)
+				r.Post("/restaurants/{id}/categories", catalogHandler.CreateCategory)
+				r.Put("/restaurants/{id}/categories/{cat_id}", catalogHandler.UpdateCategory)
+				r.Delete("/restaurants/{id}/categories/{cat_id}", catalogHandler.DeleteCategory)
+				r.Patch("/restaurants/{id}/categories/reorder", catalogHandler.ReorderCategories)
+
+				// Product management
+				r.Get("/restaurants/{id}/products", catalogHandler.ListProducts)
+				r.Post("/restaurants/{id}/products", catalogHandler.CreateProduct)
+				r.Get("/products/{id}", catalogHandler.GetProduct)
+				r.Put("/products/{id}", catalogHandler.UpdateProduct)
+				r.Delete("/products/{id}", catalogHandler.DeleteProduct)
+				r.Patch("/products/{id}/availability", catalogHandler.UpdateProductAvailability)
+				r.Post("/products/{id}/discount", catalogHandler.UpsertDiscount)
+				r.Delete("/products/{id}/discount", catalogHandler.DeactivateDiscount)
+				r.Post("/products/bulk-upload", catalogHandler.BulkUpload)
+
+				// Menu duplication
+				r.Post("/restaurants/{id}/menu/duplicate", catalogHandler.DuplicateMenu)
+
+				// Inventory management
 				r.Route("/inventory", func(r chi.Router) {
 					inventoryHandler.RegisterRoutes(r)
 				})
+
+				// Promo management
 				r.Route("/promos", func(r chi.Router) {
 					promoHandler.RegisterRoutes(r)
 				})
+
+				// Order management (partner)
 				r.Route("/orders", func(r chi.Router) {
 					r.Get("/", orderHandler.ListPartnerOrders)
 					r.Patch("/{id}/confirm", orderHandler.ConfirmOrderPartner)

@@ -20,7 +20,7 @@ func NewHandler(svc *Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// CalculateCharge handles POST /api/v1/orders/charges/calculate
+// CalculateCharge handles POST /api/v1/delivery/charges
 func (h *Handler) CalculateCharge(w http.ResponseWriter, r *http.Request) {
 	t := tenant.FromContext(r.Context())
 	if t == nil {
