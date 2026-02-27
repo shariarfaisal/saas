@@ -7,7 +7,8 @@ export async function POST() {
   }
 
   const response = NextResponse.json({ ok: true });
-  response.cookies.set("admin_access_token", "session-token", {
+  const token = `mock-${crypto.randomUUID()}`;
+  response.cookies.set("admin_access_token", token, {
     httpOnly: true,
     sameSite: "lax",
     secure: true,

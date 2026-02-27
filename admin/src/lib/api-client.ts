@@ -5,7 +5,10 @@ type ApiError = {
   status: number;
 };
 
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080/api/v1";
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
+if (!process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NODE_ENV === "development") {
+  console.warn("NEXT_PUBLIC_API_BASE_URL is not set. Falling back to /api/v1.");
+}
 
 let refreshPromise: Promise<void> | null = null;
 

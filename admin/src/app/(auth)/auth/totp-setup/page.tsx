@@ -24,7 +24,7 @@ export default function TotpSetupPage() {
       <h1 className="text-xl font-semibold">Set up 2FA (TOTP)</h1>
       <p className="mt-2 text-sm text-slate-600">Scan this QR seed in your authenticator app:</p>
       <div className="mt-3 rounded-md border bg-slate-100 p-4 text-xs">
-        otpauth://totp/munchies-admin?secret=JBSWY3DPEHPK3PXP
+        QR provisioning URI is provided securely by backend during setup.
       </div>
       <div className="mt-4">
         <Input onChange={(event) => setCode(event.target.value)} placeholder="Enter 6-digit TOTP" value={code} />

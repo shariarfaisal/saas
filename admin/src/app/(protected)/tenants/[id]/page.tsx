@@ -1,4 +1,6 @@
 export default function TenantDetailPage() {
+  const partnerPortalUrl = process.env.NEXT_PUBLIC_PARTNER_PORTAL_URL;
+
   return (
     <div className="space-y-4">
       <section className="rounded-md border bg-white p-4">
@@ -15,10 +17,11 @@ export default function TenantDetailPage() {
           <button className="rounded bg-rose-600 px-3 py-2 text-sm text-white">Suspend</button>
           <button className="rounded bg-emerald-600 px-3 py-2 text-sm text-white">Reinstate</button>
           <a
-            className="rounded bg-slate-900 px-3 py-2 text-sm text-white"
-            href="https://partner.platform.com"
+            aria-disabled={!partnerPortalUrl}
+            className={`rounded px-3 py-2 text-sm text-white ${partnerPortalUrl ? "bg-slate-900" : "cursor-not-allowed bg-slate-400"}`}
+            href={partnerPortalUrl ?? "#"}
             rel="noreferrer"
-            target="_blank"
+            target={partnerPortalUrl ? "_blank" : undefined}
           >
             Impersonate
           </a>

@@ -55,7 +55,7 @@ export default function DashboardPage() {
         </section>
 
         <section className="rounded-md border bg-white p-4">
-          <h2 className="mb-2 text-sm font-semibold">System Health (`/admin/analytics/overview`)</h2>
+          <h2 className="mb-2 text-sm font-semibold">System Health</h2>
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between border-b pb-2">
               <dt>API latency p95</dt>
