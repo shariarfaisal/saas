@@ -19,7 +19,10 @@ var multiHyphen = regexp.MustCompile(`-{2,}`)
 func Generate(name string) string {
 	// Normalise Unicode (NFD) and strip combining marks (accents)
 	t := transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
-	normalised, _, _ := transform.String(t, name)
+	normalised, _, err := transform.String(t, name)
+	if err != nil {
+		normalised = name
+	}
 
 	lower := strings.ToLower(normalised)
 

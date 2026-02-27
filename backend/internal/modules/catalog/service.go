@@ -431,11 +431,12 @@ func (s *Service) DuplicateMenu(ctx context.Context, srcRestaurantID, dstRestaur
 	}
 
 	for _, prod := range products {
-		newCatID := prod.CategoryID
+		newCatID := pgtype.UUID{} // default: no category
 		if prod.CategoryID.Valid {
 			if mapped, ok := catIDMap[prod.CategoryID.Bytes]; ok {
 				newCatID = pgtype.UUID{Bytes: mapped, Valid: true}
 			}
+			// If category not found in map, product is created without a category
 		}
 		_, err := s.repo.CreateProduct(ctx, sqlc.CreateProductParams{
 			TenantID:     tenantID,

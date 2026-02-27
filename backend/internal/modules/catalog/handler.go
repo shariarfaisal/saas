@@ -489,11 +489,19 @@ func (h *Handler) BulkUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	type rowError struct {
+		Row     int    `json:"row"`
+		Message string `json:"message"`
+	}
+
 	catCache := make(map[string]uuid.UUID)
 	created := 0
+	var rowErrors []rowError
 
-	for _, row := range records[1:] {
+	for i, row := range records[1:] {
+		rowNum := i + 2 // 1-indexed, account for header
 		if len(row) < 5 {
+			rowErrors = append(rowErrors, rowError{Row: rowNum, Message: "insufficient columns (need 5)"})
 			continue
 		}
 		catName := strings.TrimSpace(row[0])
@@ -503,6 +511,7 @@ func (h *Handler) BulkUpload(w http.ResponseWriter, r *http.Request) {
 		availStr := strings.TrimSpace(row[4])
 
 		if name == "" {
+			rowErrors = append(rowErrors, rowError{Row: rowNum, Message: "name is empty"})
 			continue
 		}
 
@@ -537,7 +546,7 @@ func (h *Handler) BulkUpload(w http.ResponseWriter, r *http.Request) {
 		var basePrice pgtype.Numeric
 		if basePriceStr != "" {
 			if err := basePrice.Scan(basePriceStr); err != nil {
-				// Skip rows with invalid price
+				rowErrors = append(rowErrors, rowError{Row: rowNum, Message: "invalid base_price: " + basePriceStr})
 				continue
 			}
 		}
@@ -554,10 +563,15 @@ func (h *Handler) BulkUpload(w http.ResponseWriter, r *http.Request) {
 		})
 		if err == nil {
 			created++
+		} else {
+			rowErrors = append(rowErrors, rowError{Row: rowNum, Message: err.Error()})
 		}
 	}
 
-	respond.JSON(w, http.StatusOK, map[string]int{"created": created})
+	respond.JSON(w, http.StatusOK, map[string]interface{}{
+		"created": created,
+		"errors":  rowErrors,
+	})
 }
 
 // DuplicateMenu handles POST /partner/restaurants/{id}/menu/duplicate
