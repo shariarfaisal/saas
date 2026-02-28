@@ -310,40 +310,40 @@
 
 ## PHASE 16 — Partner Portal (Next.js)
 
-- [ ] **TASK-080 — Partner portal project setup**
+- [x] **TASK-080 — Partner portal project setup**
       Initialise `partner/` Next.js 14 app (same stack as admin); API client with tenant-aware base URL; Zustand auth store; protected route layout; notification bell (polling unread count); new-order audio notification setup.
 
-- [ ] **TASK-081 — Partner auth (login, password reset, invite flow)**
+- [x] **TASK-081 — Partner auth (login, password reset, invite flow)**
       Build login page (email+password); forgot/reset password flow; invitation acceptance page (set password from invite token); multi-restaurant context: on login with multiple restaurants show restaurant picker.
 
-- [ ] **TASK-082 — Partner dashboard (live order board)**
+- [x] **TASK-082 — Partner dashboard (live order board)**
       Build dashboard: KPI cards (today's orders, revenue, pending count, avg delivery time); **live incoming order panel** (SSE-connected, sound + visual badge on new order, accept/reject buttons with 3-min countdown timer); 7-day trend charts; quick-action buttons (toggle restaurant, view pending issues).
 
-- [ ] **TASK-083 — Restaurant management pages**
+- [x] **TASK-083 — Restaurant management pages**
       Build restaurant list (cards with availability toggle); restaurant create/edit form (all fields: name, description, cuisines, address, images, operating hours day-by-day scheduler, VAT rate, prep time); branch switcher in nav sidebar scoping all views to selected restaurant.
 
-- [ ] **TASK-084 — Menu management (categories, products, drag-drop reorder)**
+- [x] **TASK-084 — Menu management (categories, products, drag-drop reorder)**
       Build menu page: left-panel category list with dnd-kit drag-drop reorder; right-panel product grid per category; product create/edit sheet (all fields: name, images, price type, variant builder, addon builder, discount toggle); availability toggle per product/category; bulk-upload CSV modal.
 
-- [ ] **TASK-085 — Live order management board**
+- [x] **TASK-085 — Live order management board**
       Build orders page: kanban columns (New → Confirmed → Preparing → Ready → Picked); cards show order number, items summary, time elapsed, customer area; action buttons per status; order detail drawer (items+addons, customer info, rider info, address map, payment, timeline); order history table with search + filters.
 
-- [ ] **TASK-086 — Rider management pages**
+- [x] **TASK-086 — Rider management pages**
       Build rider list (table: name, hub, status badge, location, today's orders); rider create/edit form; rider detail page (stats, attendance, live location map, travel-log playback, earnings, penalties); attendance calendar; availability toggle.
 
-- [ ] **TASK-087 — Promotions management pages**
+- [x] **TASK-087 — Promotions management pages**
       Build promo list (table: code, type, usage count, status); promo create/edit form (all fields: code, type, amount, cap, apply_on, restrictions, date range, per-user limit, cashback amount); promo performance stats (usage, total discount given, unique users).
 
-- [ ] **TASK-088 — Finance pages (invoices, commission, payouts)**
+- [x] **TASK-088 — Finance pages (invoices, commission, payouts)**
       Build finance summary (current period net payable, YTD totals); invoice list with status badges; invoice detail page (full breakdown from doc 08 §8.6); PDF download; payment history; outstanding balance alert.
 
-- [ ] **TASK-089 — Sales & analytics pages**
+- [x] **TASK-089 — Sales & analytics pages**
       Build reports section: sales report (date range picker, grouped by day/week/month, all metrics from doc 12, CSV export); top-selling products table; peak hours heatmap; order status breakdown chart; rider performance table; customer area distribution.
 
-- [ ] **TASK-090 — Content management pages (banners, stories, sections)**
+- [x] **TASK-090 — Content management pages (banners, stories, sections)**
       Build banners page (image upload, link type/value, area targeting, validity dates, sort-order drag-drop); stories page (media upload, expiry, restaurant link); homepage sections editor (type, add restaurants/products, display order).
 
-- [ ] **TASK-091 — Partner settings & team management**
+- [x] **TASK-091 — Partner settings & team management**
       Build settings page (vendor profile, notification preferences per event type); team management (list members with roles, invite by email modal, role selector, remove member); API keys placeholder (Phase 2).
 
 ---
