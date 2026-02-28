@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/munchies/platform/backend/internal/config"
 	"github.com/munchies/platform/backend/internal/db/sqlc"
 	"github.com/munchies/platform/backend/internal/middleware"
@@ -19,9 +20,12 @@ import (
 	deliverymod "github.com/munchies/platform/backend/internal/modules/delivery"
 	financemod "github.com/munchies/platform/backend/internal/modules/finance"
 	hubmod "github.com/munchies/platform/backend/internal/modules/hub"
+	inventorymod "github.com/munchies/platform/backend/internal/modules/inventory"
 	issuemod "github.com/munchies/platform/backend/internal/modules/issue"
 	mediamod "github.com/munchies/platform/backend/internal/modules/media"
+	ordermod "github.com/munchies/platform/backend/internal/modules/order"
 	paymentmod "github.com/munchies/platform/backend/internal/modules/payment"
+	promomod "github.com/munchies/platform/backend/internal/modules/promo"
 	ratingmod "github.com/munchies/platform/backend/internal/modules/rating"
 	restaurantmod "github.com/munchies/platform/backend/internal/modules/restaurant"
 	ridermod "github.com/munchies/platform/backend/internal/modules/rider"
@@ -42,6 +46,7 @@ import (
 // Deps holds all external dependencies required by the server.
 type Deps struct {
 	Queries *sqlc.Queries
+	Pool    *pgxpool.Pool
 	Redis   *redisclient.Client
 	SMS     sms.Sender
 }
@@ -133,6 +138,18 @@ func (s *Server) registerRoutes(deps Deps) {
 	deliveryHandler := deliverymod.NewHandler(deliverySvc)
 
 	mediaHandler := mediamod.NewHandler()
+
+	// Inventory module
+	inventorySvc := inventorymod.NewService(deps.Queries)
+	inventoryHandler := inventorymod.NewHandler(inventorySvc)
+
+	// Promo module
+	promoSvc := promomod.NewService(deps.Queries)
+	promoHandler := promomod.NewHandler(promoSvc)
+
+	// Order module
+	orderSvc := ordermod.NewService(deps.Queries, deps.Pool, inventorySvc, promoSvc)
+	orderHandler := ordermod.NewHandler(orderSvc)
 
 	// Payment gateways
 	paymentGateways := map[sqlc.PaymentMethod]gatewaypkg.Gateway{
@@ -236,6 +253,7 @@ func (s *Server) registerRoutes(deps Deps) {
 				r.Get("/wallet", userHandler.ListWallet)
 				r.Get("/notifications", userHandler.ListNotifications)
 				r.Patch("/notifications/{id}/read", userHandler.MarkNotificationRead)
+				r.Get("/orders", orderHandler.ListMyOrders)
 			})
 
 			// Order issues (customer create)
@@ -243,6 +261,15 @@ func (s *Server) registerRoutes(deps Deps) {
 
 			// Ratings (customer rate delivered order)
 			r.Post("/orders/{id}/rate", ratingHandler.RateOrder)
+
+			// Customer order endpoints
+			r.Route("/orders", func(r chi.Router) {
+				r.Post("/charges/calculate", orderHandler.CalculateCharges)
+				r.Post("/", orderHandler.CreateOrder)
+				r.Get("/{id}", orderHandler.GetOrder)
+				r.Get("/{id}/tracking", orderHandler.TrackOrder)
+				r.Patch("/{id}/cancel", orderHandler.CancelOrder)
+			})
 
 			// SSE events
 			r.Get("/events/subscribe", sseHandler.Subscribe)
@@ -301,6 +328,11 @@ func (s *Server) registerRoutes(deps Deps) {
 			// Earnings & history
 			r.Get("/earnings", riderHandler.ListEarnings)
 			r.Get("/history", riderHandler.ListDeliveryHistory)
+
+			// Order module rider routes
+			r.Route("/orders", func(r chi.Router) {
+				r.Patch("/{id}/picked/{restaurantID}", orderHandler.PickedByRider)
+			})
 		})
 
 		// Rider WebSocket (custom auth via query param)
@@ -402,6 +434,25 @@ func (s *Server) registerRoutes(deps Deps) {
 		r.Get("/content/sections", contentHandler.ListSections)
 		r.Put("/content/sections/{id}", contentHandler.UpdateSection)
 
+		// Inventory management
+		r.Route("/inventory", func(r chi.Router) {
+			inventoryHandler.RegisterRoutes(r)
+		})
+
+		// Promo management
+		r.Route("/promos", func(r chi.Router) {
+			promoHandler.RegisterRoutes(r)
+		})
+
+		// Order management (partner)
+		r.Route("/orders", func(r chi.Router) {
+			r.Get("/", orderHandler.ListPartnerOrders)
+			r.Patch("/{id}/confirm", orderHandler.ConfirmOrderPartner)
+			r.Patch("/{id}/reject", orderHandler.RejectOrderPartner)
+			r.Patch("/{id}/preparing", orderHandler.PreparingOrderPartner)
+			r.Patch("/{id}/ready", orderHandler.ReadyOrderPartner)
+		})
+
 		// Dashboard & analytics (partner)
 		r.Get("/dashboard", analyticsHandler.GetDashboard)
 		r.Get("/reports/sales", analyticsHandler.GetSalesReport)
@@ -427,6 +478,11 @@ func (s *Server) registerRoutes(deps Deps) {
 		r.Patch("/issues/{id}/resolve", issueHandler.ResolveIssue)
 		r.Patch("/issues/{id}/refund/approve", issueHandler.ApproveRefund)
 		r.Patch("/issues/{id}/refund/reject", issueHandler.RejectRefund)
+
+		// Order management (admin)
+		r.Route("/orders", func(r chi.Router) {
+			r.Patch("/{id}/force-cancel", orderHandler.ForceCancelOrder)
+		})
 
 		// Analytics (admin — cross-tenant)
 		r.Get("/analytics/overview", analyticsHandler.AdminOverview)

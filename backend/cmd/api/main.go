@@ -66,6 +66,7 @@ func main() {
 
 	deps := server.Deps{
 		Queries: queries,
+		Pool:    pool,
 		Redis:   redisClient,
 		SMS:     smsSender,
 	}

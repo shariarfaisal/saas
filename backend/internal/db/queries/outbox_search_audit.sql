@@ -13,8 +13,9 @@ UPDATE users SET device_push_token = NULL WHERE id = $1;
 
 -- name: CreateOutboxEvent :one
 INSERT INTO outbox_events (
-    tenant_id, aggregate_type, aggregate_id, event_type, payload
-) VALUES ($1, $2, $3, $4, $5)
+    tenant_id, aggregate_type, aggregate_id, event_type,
+    payload, status, max_attempts
+) VALUES ($1, $2, $3, $4, $5, 'pending', $6)
 RETURNING *;
 
 -- name: ListPendingOutboxEvents :many

@@ -175,8 +175,9 @@ func (q *Queries) CreateOrderIssueMessage(ctx context.Context, arg CreateOrderIs
 
 const createOutboxEvent = `-- name: CreateOutboxEvent :one
 INSERT INTO outbox_events (
-    tenant_id, aggregate_type, aggregate_id, event_type, payload
-) VALUES ($1, $2, $3, $4, $5)
+    tenant_id, aggregate_type, aggregate_id, event_type,
+    payload, status, max_attempts
+) VALUES ($1, $2, $3, $4, $5, 'pending', $6)
 RETURNING id, tenant_id, aggregate_type, aggregate_id, event_type, payload, status, attempts, max_attempts, next_retry_at, last_error, processed_at, created_at
 `
 
@@ -186,6 +187,7 @@ type CreateOutboxEventParams struct {
 	AggregateID   uuid.UUID       `json:"aggregate_id"`
 	EventType     string          `json:"event_type"`
 	Payload       json.RawMessage `json:"payload"`
+	MaxAttempts   int32           `json:"max_attempts"`
 }
 
 func (q *Queries) CreateOutboxEvent(ctx context.Context, arg CreateOutboxEventParams) (OutboxEvent, error) {
@@ -195,6 +197,7 @@ func (q *Queries) CreateOutboxEvent(ctx context.Context, arg CreateOutboxEventPa
 		arg.AggregateID,
 		arg.EventType,
 		arg.Payload,
+		arg.MaxAttempts,
 	)
 	var i OutboxEvent
 	err := row.Scan(

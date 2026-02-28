@@ -2,6 +2,8 @@ package media
 
 import (
 	"net/http"
+	"path/filepath"
+	"strings"
 
 	"github.com/munchies/platform/backend/internal/pkg/apperror"
 	"github.com/munchies/platform/backend/internal/pkg/respond"
@@ -28,9 +30,12 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Sanitize filename: strip path separators and use only the base name
+	safeFilename := strings.ReplaceAll(filepath.Base(header.Filename), "..", "")
+
 	// Stub response — return a placeholder URL
 	respond.JSON(w, http.StatusOK, map[string]string{
-		"url":      "https://cdn.example.com/uploads/" + header.Filename,
-		"filename": header.Filename,
+		"url":      "https://cdn.example.com/uploads/" + safeFilename,
+		"filename": safeFilename,
 	})
 }
