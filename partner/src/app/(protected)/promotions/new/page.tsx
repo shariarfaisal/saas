@@ -70,12 +70,12 @@ export default function NewPromotionPage() {
             <label className="mb-1 block text-sm font-medium">
               {promoType === "percentage" ? "Discount (%)" : "Discount Amount (৳)"}
             </label>
-            <Input type="number" {...register("amount")} placeholder={promoType === "percentage" ? "20" : "50"} />
+            <Input type="number" {...register("amount", { valueAsNumber: true })} placeholder={promoType === "percentage" ? "20" : "50"} />
             <p className="mt-1 text-xs text-rose-600">{errors.amount?.message}</p>
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Maximum Cap (৳)</label>
-            <Input type="number" {...register("cap")} placeholder="200" />
+            <Input type="number" {...register("cap", { valueAsNumber: true })} placeholder="200" />
           </div>
         </div>
 
@@ -90,23 +90,23 @@ export default function NewPromotionPage() {
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Min Order Amount (৳)</label>
-            <Input type="number" {...register("minOrderAmount")} placeholder="0" />
+            <Input type="number" {...register("minOrderAmount", { valueAsNumber: true })} placeholder="0" />
           </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
           <div>
             <label className="mb-1 block text-sm font-medium">Max Total Usage</label>
-            <Input type="number" {...register("maxUsage")} placeholder="Unlimited" />
+            <Input type="number" {...register("maxUsage", { valueAsNumber: true })} placeholder="Unlimited" />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Per-User Limit</label>
-            <Input type="number" {...register("perUserLimit")} placeholder="1" />
+            <Input type="number" {...register("perUserLimit", { valueAsNumber: true })} placeholder="1" />
           </div>
           {promoType === "cashback" && (
             <div>
               <label className="mb-1 block text-sm font-medium">Cashback Amount (৳)</label>
-              <Input type="number" {...register("cashbackAmount")} placeholder="50" />
+              <Input type="number" {...register("cashbackAmount", { valueAsNumber: true })} placeholder="50" />
             </div>
           )}
         </div>

@@ -100,12 +100,12 @@ export default function NewRestaurantPage() {
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <label className="mb-1 block text-sm font-medium">VAT Rate (%)</label>
-            <Input type="number" step="0.1" {...register("vatRate")} />
+            <Input type="number" step="0.1" {...register("vatRate", { valueAsNumber: true })} />
             <p className="mt-1 text-xs text-rose-600">{errors.vatRate?.message}</p>
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Prep Time (minutes)</label>
-            <Input type="number" {...register("prepTime")} />
+            <Input type="number" {...register("prepTime", { valueAsNumber: true })} />
             <p className="mt-1 text-xs text-rose-600">{errors.prepTime?.message}</p>
           </div>
         </div>

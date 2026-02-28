@@ -93,11 +93,11 @@ export default function EditPromotionPage() {
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <label className="mb-1 block text-sm font-medium">Amount</label>
-            <Input type="number" {...register("amount")} />
+            <Input type="number" {...register("amount", { valueAsNumber: true })} />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Cap (৳)</label>
-            <Input type="number" {...register("cap")} />
+            <Input type="number" {...register("cap", { valueAsNumber: true })} />
           </div>
         </div>
 
