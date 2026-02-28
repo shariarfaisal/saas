@@ -64,8 +64,11 @@ func main() {
 		Timezone:       "Asia/Dhaka",
 		Currency:       "BDT",
 		Locale:         "en",
+		LogoUrl:        sql.NullString{},
+		FaviconUrl:     sql.NullString{},
 		PrimaryColor:   "#FF6B35",
 		SecondaryColor: "#2C3E50",
+		CustomDomain:   sql.NullString{},
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "create tenant: %v\n", err)
@@ -84,11 +87,15 @@ func main() {
 
 	adminUser, err := q.CreateUser(ctx, sqlc.CreateUserParams{
 		TenantID:     tenantPgUUID,
-		Name:         "Dev Admin",
+		Phone:        sql.NullString{},
 		Email:        sql.NullString{String: "admin@dev.example.com", Valid: true},
+		Name:         "Dev Admin",
 		PasswordHash: sql.NullString{String: string(passwordHash), Valid: true},
 		Role:         sqlc.UserRoleTenantAdmin,
 		Status:       sqlc.UserStatusActive,
+		Gender:       sqlc.NullGenderType{},
+		DateOfBirth:  pgtype.Date{},
+		AvatarUrl:    sql.NullString{},
 		Metadata:     json.RawMessage("{}"),
 	})
 	if err != nil {

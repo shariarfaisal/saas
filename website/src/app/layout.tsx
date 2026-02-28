@@ -1,7 +1,10 @@
+import React from "react";
 import type { Metadata } from "next";
 import "./globals.css";
 
 import { AppProviders } from "@/components/providers";
+import { AuthModal } from "@/components/auth/auth-modal";
+import { CartStatus } from "@/components/cart/cart-status";
 import { buildSeoConfig, toMetadata } from "@/lib/seo";
 import { resolveTenantConfig } from "@/lib/tenant";
 
@@ -20,7 +23,11 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
-        <AppProviders tenant={tenant}>{children}</AppProviders>
+        <AppProviders tenant={tenant}>
+          {children}
+          <AuthModal />
+          <CartStatus />
+        </AppProviders>
       </body>
     </html>
   );

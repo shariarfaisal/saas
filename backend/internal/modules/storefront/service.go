@@ -77,8 +77,20 @@ func (s *Service) GetRestaurant(ctx context.Context, tenantID uuid.UUID, slug st
 	return &res, nil
 }
 
-// GetProduct returns an available product by ID for public view.
-func (s *Service) GetProduct(ctx context.Context, id uuid.UUID) (*sqlc.Product, error) {
+// ProductDetail extends sqlc.Product with modifiers and discounts
+type ProductDetail struct {
+	sqlc.Product
+	ModifierGroups []ModifierGroupDetail `json:"modifier_groups,omitempty"`
+	Discount       *sqlc.ProductDiscount `json:"discount,omitempty"`
+}
+
+type ModifierGroupDetail struct {
+	sqlc.ProductModifierGroup
+	Options []sqlc.ProductModifierOption `json:"options"`
+}
+
+// GetProduct returns an available product by ID for public view with modifiers and discounts.
+func (s *Service) GetProduct(ctx context.Context, id uuid.UUID) (*ProductDetail, error) {
 	p, err := s.q.GetProductByIDPublic(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperror.NotFound("product")
@@ -86,5 +98,30 @@ func (s *Service) GetProduct(ctx context.Context, id uuid.UUID) (*sqlc.Product, 
 	if err != nil {
 		return nil, err
 	}
-	return &p, nil
+
+	detail := &ProductDetail{Product: p}
+
+	// Fetch modifier groups if product has_modifiers is true
+	if p.HasModifiers {
+		groups, err := s.q.ListModifierGroupsByProduct(ctx, p.ID)
+		if err == nil {
+			for _, g := range groups {
+				options, err := s.q.ListModifierOptionsByGroup(ctx, g.ID)
+				if err == nil {
+					detail.ModifierGroups = append(detail.ModifierGroups, ModifierGroupDetail{
+						ProductModifierGroup: g,
+						Options:             options,
+					})
+				}
+			}
+		}
+	}
+
+	// Fetch active discount
+	discount, err := s.q.GetActiveDiscount(ctx, p.ID)
+	if err == nil {
+		detail.Discount = &discount
+	}
+
+	return detail, nil
 }

@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
   response.cookies.set("partner_access_token", token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: true,
+    secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 60 * 30,
   });

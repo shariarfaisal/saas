@@ -350,34 +350,34 @@
 
 ## PHASE 17 — Customer Website (Next.js)
 
-- [ ] **TASK-092 — Website project setup (SSR-first, SEO-optimized)**
+- [x] **TASK-092 — Website project setup (SSR-first, SEO-optimized)**
       Initialise `website/` Next.js 14 app (App Router, TypeScript, Tailwind, TanStack Query, Zustand); configure tenant resolution for SSR (read subdomain in server components, pass config to client); add next-seo for metadata; Cloudflare CDN headers; structured data baseline.
 
-- [ ] **TASK-093 — Customer auth (phone OTP flow)**
+- [x] **TASK-093 — Customer auth (phone OTP flow)**
       Build phone OTP modal (phone input → OTP input → success); handle first-time registration (name prompt after OTP verify); JWT stored in httpOnly cookie via Next.js route handler; Zustand auth state; protected-route HOC for checkout/account pages.
 
-- [ ] **TASK-094 — Homepage (banners, sections, restaurant listing)**
+- [x] **TASK-094 — Homepage (banners, sections, restaurant listing)**
       Build homepage: hero banner carousel (SSR-fetched, lazy); story strip (horizontal scroll); cuisine filter pills; area selector modal (GPS auto-detect + manual area pick from zone list); restaurant grid (infinite scroll, open/closed badge, rating, delivery time, offer tags); sort controls.
 
-- [ ] **TASK-095 — Restaurant page (menu with sticky category nav)**
+- [x] **TASK-095 — Restaurant page (menu with sticky category nav)**
       Build restaurant page (SSR for SEO): restaurant header (banner, logo, info, cuisines, hours); sticky horizontal category nav (click scrolls, scroll updates active tab via IntersectionObserver); product grid (images, prices, discount badge, availability); search-within-restaurant input.
 
-- [ ] **TASK-096 — Product detail modal (variants, addons, quantity)**
+- [x] **TASK-096 — Product detail modal (variants, addons, quantity)**
       Build product modal/page: image gallery; description; variant group selector (radio or checkbox based on min/max_select); addon group selector; quantity stepper; real-time price calculation (base + variants + addons × qty); "Add to Cart" button with validation.
 
-- [ ] **TASK-097 — Cart (persistent, multi-restaurant)**
+- [x] **TASK-097 — Cart (persistent, multi-restaurant)**
       Build cart drawer/page: items grouped by restaurant; quantity change + remove; price summary (subtotal, item discounts, promo + delivery placeholders); persist in `localStorage`; sync to session on auth; clear on order success; multi-restaurant info banner.
 
-- [ ] **TASK-098 — Checkout page (address, promo, payment)**
+- [x] **TASK-098 — Checkout page (address, promo, payment)**
       Build checkout page (protected): delivery address selector (saved + add-new with Barikoi map picker); promo code input (live API validation, discount preview); payment method radio (COD, bKash, card); estimated delivery time; full charge breakdown; "Place Order" with loading state + client-side idempotency key.
 
-- [ ] **TASK-099 — Payment redirect flows (bKash & AamarPay)**
+- [x] **TASK-099 — Payment redirect flows (bKash & AamarPay)**
       Handle bKash redirect (open bKash URL, poll order status on return), AamarPay standard redirect (success/fail/cancel callback pages), wallet instant payment; build success page (tracking link), fail page (retry option), cancel page; clear PENDING state correctly.
 
-- [ ] **TASK-100 — Order tracking page (SSE real-time)**
+- [x] **TASK-100 — Order tracking page (SSE real-time)**
       Build active order tracking: step-progress-bar (Pending → Confirmed → Preparing → Ready → Picked → Delivered) updated via SSE; order details card; rider card (appears when PICKED — name, phone, live location map via polling); cancel button (shown only when cancellable); ETA countdown.
 
-- [ ] **TASK-101 — Account pages (profile, addresses, history, wallet, favourites)**
+- [x] **TASK-101 — Account pages (profile, addresses, history, wallet, favourites)**
       Build account section: profile edit form; saved addresses CRUD with map picker; order history (filterable, reorder button, detail modal); wallet page (balance card, paginated transactions); favourites grid (heart toggle, quick-remove); notification center list.
 
 ---
