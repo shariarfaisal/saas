@@ -28,7 +28,7 @@ export default function NewRiderPage() {
     formState: { errors, isSubmitting },
   } = useForm<RiderValues>({ resolver: zodResolver(schema) });
 
-  const onSubmit = async (_values: RiderValues) => {
+  const onSubmit = async () => {
     router.push("/riders");
   };
 

@@ -12,15 +12,15 @@ import { Textarea } from "@/components/ui/textarea";
 const schema = z.object({
   code: z.string().min(3, "Code must be at least 3 characters").max(20),
   type: z.enum(["percentage", "flat", "cashback"]),
-  amount: z.coerce.number().min(1, "Amount is required"),
-  cap: z.coerce.number().min(0).optional(),
+  amount: z.number().min(1, "Amount is required"),
+  cap: z.number().min(0).optional(),
   applyOn: z.enum(["order", "delivery", "product"]),
-  minOrderAmount: z.coerce.number().min(0).optional(),
-  maxUsage: z.coerce.number().min(1).optional(),
-  perUserLimit: z.coerce.number().min(1).optional(),
+  minOrderAmount: z.number().min(0).optional(),
+  maxUsage: z.number().min(1).optional(),
+  perUserLimit: z.number().min(1).optional(),
   startsAt: z.string().min(1, "Start date required"),
   endsAt: z.string().min(1, "End date required"),
-  cashbackAmount: z.coerce.number().min(0).optional(),
+  cashbackAmount: z.number().min(0).optional(),
   description: z.string().optional(),
 });
 
@@ -41,7 +41,7 @@ export default function NewPromotionPage() {
 
   const promoType = watch("type");
 
-  const onSubmit = async (_values: PromoValues) => {
+  const onSubmit = async () => {
     router.push("/promotions");
   };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -19,8 +19,8 @@ const schema = z.object({
   address: z.string().min(5),
   city: z.string().min(2),
   area: z.string().min(2),
-  vatRate: z.coerce.number().min(0).max(100),
-  prepTime: z.coerce.number().min(5).max(120),
+  vatRate: z.number().min(0).max(100),
+  prepTime: z.number().min(5).max(120),
 });
 
 type EditValues = z.infer<typeof schema>;
@@ -42,7 +42,6 @@ const mockRestaurant = {
 };
 
 export default function RestaurantDetailPage() {
-  const params = useParams();
   const router = useRouter();
 
   const {
@@ -63,7 +62,7 @@ export default function RestaurantDetailPage() {
     },
   });
 
-  const onSubmit = async (_values: EditValues) => {
+  const onSubmit = async () => {
     // PUT /partner/restaurants/:id
     router.push("/restaurants");
   };

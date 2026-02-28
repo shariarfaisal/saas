@@ -22,7 +22,7 @@ export function TrendChart() {
           <YAxis yAxisId="left" />
           <YAxis yAxisId="right" orientation="right" />
           <Tooltip
-            formatter={(value: number | string | undefined, name: string) =>
+            formatter={(value: number | string | undefined, name: string | undefined) =>
               name === "revenue" ? `৳${Number(value ?? 0).toLocaleString()}` : value
             }
           />

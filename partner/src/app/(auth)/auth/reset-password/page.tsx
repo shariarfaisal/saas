@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -22,7 +22,7 @@ const schema = z
 
 type ResetValues = z.infer<typeof schema>;
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
   const [success, setSuccess] = useState(false);
@@ -33,7 +33,7 @@ export default function ResetPasswordPage() {
     formState: { errors, isSubmitting },
   } = useForm<ResetValues>({ resolver: zodResolver(schema) });
 
-  const onSubmit = async (_values: ResetValues) => {
+  const onSubmit = async () => {
     // In production, call backend with token + new password
     setSuccess(true);
   };
@@ -79,5 +79,13 @@ export default function ResetPasswordPage() {
         </Button>
       </form>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto mt-16 max-w-md p-6 text-center text-slate-500">Loading...</div>}>
+      <ResetPasswordForm />
+    </Suspense>
   );
 }

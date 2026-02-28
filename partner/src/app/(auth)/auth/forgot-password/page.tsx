@@ -24,7 +24,7 @@ export default function ForgotPasswordPage() {
     formState: { errors, isSubmitting },
   } = useForm<ForgotValues>({ resolver: zodResolver(schema) });
 
-  const onSubmit = async (_values: ForgotValues) => {
+  const onSubmit = async () => {
     // In production, call the backend password reset endpoint
     setSent(true);
   };

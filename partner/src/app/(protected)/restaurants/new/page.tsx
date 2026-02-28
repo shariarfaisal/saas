@@ -8,7 +8,6 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select } from "@/components/ui/select";
 
 const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
 
@@ -25,8 +24,8 @@ const schema = z.object({
   address: z.string().min(5, "Address is required"),
   city: z.string().min(2, "City is required"),
   area: z.string().min(2, "Area is required"),
-  vatRate: z.coerce.number().min(0).max(100),
-  prepTime: z.coerce.number().min(5).max(120),
+  vatRate: z.number().min(0).max(100),
+  prepTime: z.number().min(5).max(120),
   hours: z.object(Object.fromEntries(days.map((d) => [d, hourSchema])) as Record<string, typeof hourSchema>),
 });
 
@@ -52,7 +51,7 @@ export default function NewRestaurantPage() {
 
   const hours = watch("hours");
 
-  const onSubmit = async (_values: RestaurantValues) => {
+  const onSubmit = async () => {
     // In production, POST to /partner/restaurants
     router.push("/restaurants");
   };
@@ -121,7 +120,7 @@ export default function NewRestaurantPage() {
                   <input
                     type="checkbox"
                     checked={!hours?.[day]?.isClosed}
-                    onChange={(e) => setValue(`hours.${day}.isClosed` as keyof RestaurantValues, !e.target.checked)}
+                    onChange={(e) => setValue(`hours.${day}.isClosed` as keyof RestaurantValues, (!e.target.checked) as never)}
                   />
                   Open
                 </label>

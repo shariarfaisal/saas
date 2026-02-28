@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -23,7 +23,7 @@ const schema = z
 
 type InviteValues = z.infer<typeof schema>;
 
-export default function InvitePage() {
+function InviteForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const token = searchParams.get("token");
@@ -36,7 +36,7 @@ export default function InvitePage() {
     formState: { errors, isSubmitting },
   } = useForm<InviteValues>({ resolver: zodResolver(schema) });
 
-  const onSubmit = async (_values: InviteValues) => {
+  const onSubmit = async () => {
     setError(null);
     try {
       // In production, call backend to accept invitation
@@ -82,5 +82,13 @@ export default function InvitePage() {
         </Button>
       </form>
     </div>
+  );
+}
+
+export default function InvitePage() {
+  return (
+    <Suspense fallback={<div className="mx-auto mt-16 max-w-md p-6 text-center text-slate-500">Loading...</div>}>
+      <InviteForm />
+    </Suspense>
   );
 }

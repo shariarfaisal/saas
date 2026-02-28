@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,18 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
 
 const schema = z.object({
   code: z.string().min(3).max(20),
   type: z.enum(["percentage", "flat", "cashback"]),
-  amount: z.coerce.number().min(1),
-  cap: z.coerce.number().min(0).optional(),
-  applyOn: z.enum(["order", "delivery", "product"]),
-  minOrderAmount: z.coerce.number().min(0).optional(),
-  maxUsage: z.coerce.number().min(1).optional(),
-  perUserLimit: z.coerce.number().min(1).optional(),
+  amount: z.number().min(1),
+  cap: z.number().min(0).optional(),
   startsAt: z.string().min(1),
   endsAt: z.string().min(1),
 });
@@ -27,15 +23,10 @@ const schema = z.object({
 type PromoValues = z.infer<typeof schema>;
 
 const mockPromo = {
-  id: "promo-1",
   code: "WELCOME20",
   type: "percentage" as const,
   amount: 20,
   cap: 200,
-  applyOn: "order" as const,
-  minOrderAmount: 300,
-  maxUsage: 1000,
-  perUserLimit: 1,
   startsAt: "2024-12-01",
   endsAt: "2025-01-31",
   status: "active" as const,
@@ -45,19 +36,18 @@ const mockPromo = {
 };
 
 export default function EditPromotionPage() {
-  const params = useParams();
   const router = useRouter();
 
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { isSubmitting },
   } = useForm<PromoValues>({
     resolver: zodResolver(schema),
     defaultValues: mockPromo,
   });
 
-  const onSubmit = async (_values: PromoValues) => {
+  const onSubmit = async () => {
     router.push("/promotions");
   };
 

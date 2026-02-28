@@ -1,9 +1,8 @@
 "use client";
 
-import { useParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardTitle } from "@/components/ui/card";
-import { MapPin, Phone, Clock, Calendar } from "lucide-react";
+import { MapPin, Phone, Calendar } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
 const mockRider = {
@@ -46,8 +45,6 @@ const attendanceCalendar = Array.from({ length: 30 }, (_, i) => ({
 }));
 
 export default function RiderDetailPage() {
-  const params = useParams();
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
