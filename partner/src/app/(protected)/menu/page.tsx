@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Plus, GripVertical, Upload, Edit, Trash2 } from "lucide-react";
 
@@ -23,6 +24,7 @@ type Product = {
   hasVariants: boolean;
   hasAddons: boolean;
   image?: string;
+  foodType?: "veg" | "egg" | "non_veg";
 };
 
 const mockCategories: Category[] = [
@@ -34,14 +36,31 @@ const mockCategories: Category[] = [
 ];
 
 const mockProducts: Product[] = [
-  { id: "p-1", name: "Kacchi Biryani (Half)", price: 350, categoryId: "cat-1", isAvailable: true, hasVariants: true, hasAddons: true },
-  { id: "p-2", name: "Kacchi Biryani (Full)", price: 650, categoryId: "cat-1", isAvailable: true, hasVariants: true, hasAddons: true },
-  { id: "p-3", name: "Tehari", price: 220, categoryId: "cat-1", isAvailable: true, hasVariants: false, hasAddons: true },
-  { id: "p-4", name: "Plain Biryani", price: 180, categoryId: "cat-1", isAvailable: false, hasVariants: false, hasAddons: false },
-  { id: "p-5", name: "Chicken Reshmi Kebab", price: 280, categoryId: "cat-2", isAvailable: true, hasVariants: false, hasAddons: false },
-  { id: "p-6", name: "Shami Kebab", price: 120, categoryId: "cat-2", isAvailable: true, hasVariants: false, hasAddons: false },
-  { id: "p-7", name: "Borhani", price: 60, categoryId: "cat-4", isAvailable: true, hasVariants: true, hasAddons: false },
+  { id: "p-1", name: "Kacchi Biryani (Half)", price: 350, categoryId: "cat-1", isAvailable: true, hasVariants: true, hasAddons: true, foodType: "non_veg" },
+  { id: "p-2", name: "Kacchi Biryani (Full)", price: 650, categoryId: "cat-1", isAvailable: true, hasVariants: true, hasAddons: true, foodType: "non_veg" },
+  { id: "p-3", name: "Tehari", price: 220, categoryId: "cat-1", isAvailable: true, hasVariants: false, hasAddons: true, foodType: "non_veg" },
+  { id: "p-4", name: "Plain Biryani", price: 180, categoryId: "cat-1", isAvailable: false, hasVariants: false, hasAddons: false, foodType: "veg" },
+  { id: "p-5", name: "Chicken Reshmi Kebab", price: 280, categoryId: "cat-2", isAvailable: true, hasVariants: false, hasAddons: false, foodType: "non_veg" },
+  { id: "p-6", name: "Shami Kebab", price: 120, categoryId: "cat-2", isAvailable: true, hasVariants: false, hasAddons: false, foodType: "non_veg" },
+  { id: "p-7", name: "Borhani", price: 60, categoryId: "cat-4", isAvailable: true, hasVariants: true, hasAddons: false, foodType: "veg" },
 ];
+
+// Emoji prefix provides visual cue; text label ensures accessibility for screen readers.
+const FOOD_TYPE_LABELS: Record<string, string> = { veg: "🟢 Veg", egg: "🟡 Egg", non_veg: "🔴 Non-Veg" };
+const FOOD_TYPE_VARIANTS: Record<string, "success" | "warning" | "danger"> = {
+  veg: "success",
+  egg: "warning",
+  non_veg: "danger",
+};
+
+type NewProduct = {
+  name: string;
+  description: string;
+  price: string;
+  categoryId: string;
+  foodType: "veg" | "egg" | "non_veg";
+  available: boolean;
+};
 
 export default function MenuPage() {
   const [categories, setCategories] = useState(mockCategories);
@@ -51,6 +70,14 @@ export default function MenuPage() {
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [draggedCategoryId, setDraggedCategoryId] = useState<string | null>(null);
+  const [newProduct, setNewProduct] = useState<NewProduct>({
+    name: "",
+    description: "",
+    price: "",
+    categoryId: mockCategories[0]?.id ?? "",
+    foodType: "non_veg",
+    available: true,
+  });
 
   const filteredProducts = mockProducts.filter((p) => p.categoryId === selectedCategoryId);
 
@@ -193,7 +220,12 @@ export default function MenuPage() {
                       </button>
                     </div>
                   </div>
-                  <div className="mt-2 flex items-center gap-2">
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {product.foodType && (
+                      <Badge variant={FOOD_TYPE_VARIANTS[product.foodType]}>
+                        {FOOD_TYPE_LABELS[product.foodType]}
+                      </Badge>
+                    )}
                     {product.hasVariants && <Badge variant="info">Variants</Badge>}
                     {product.hasAddons && <Badge variant="info">Addons</Badge>}
                     <Badge variant={product.isAvailable ? "success" : "danger"}>
@@ -212,18 +244,52 @@ export default function MenuPage() {
         <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={() => setShowProductForm(false)}>
           <div className="w-full max-w-lg overflow-y-auto bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="mb-4 text-lg font-semibold">Add Product</h2>
-            <form className="space-y-4">
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                // In production, POST to /partner/restaurants/{id}/products
+                setShowProductForm(false);
+              }}
+            >
               <div>
-                <label className="mb-1 block text-sm font-medium">Product Name</label>
-                <Input placeholder="e.g. Kacchi Biryani" />
+                <label className="mb-1 block text-sm font-medium">Product Name *</label>
+                <Input
+                  placeholder="e.g. Kacchi Biryani"
+                  value={newProduct.name}
+                  onChange={(e) => setNewProduct((p) => ({ ...p, name: e.target.value }))}
+                  required
+                />
               </div>
+
               <div>
-                <label className="mb-1 block text-sm font-medium">Price (৳)</label>
-                <Input type="number" placeholder="350" />
+                <label className="mb-1 block text-sm font-medium">Description</label>
+                <Textarea
+                  placeholder="Describe this item..."
+                  rows={2}
+                  value={newProduct.description}
+                  onChange={(e) => setNewProduct((p) => ({ ...p, description: e.target.value }))}
+                />
               </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium">Price (৳) *</label>
+                <Input
+                  type="number"
+                  placeholder="350"
+                  value={newProduct.price}
+                  onChange={(e) => setNewProduct((p) => ({ ...p, price: e.target.value }))}
+                  required
+                />
+              </div>
+
               <div>
                 <label className="mb-1 block text-sm font-medium">Category</label>
-                <select className="w-full rounded-md border px-3 py-2 text-sm">
+                <select
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  value={newProduct.categoryId}
+                  onChange={(e) => setNewProduct((p) => ({ ...p, categoryId: e.target.value }))}
+                >
                   {categories.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
@@ -231,6 +297,25 @@ export default function MenuPage() {
                   ))}
                 </select>
               </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium">Food Type</label>
+                <div className="flex gap-3">
+                  {(["veg", "egg", "non_veg"] as const).map((ft) => (
+                    <label key={ft} className="flex cursor-pointer items-center gap-1 text-sm">
+                      <input
+                        type="radio"
+                        name="foodType"
+                        value={ft}
+                        checked={newProduct.foodType === ft}
+                        onChange={() => setNewProduct((p) => ({ ...p, foodType: ft }))}
+                      />
+                      <Badge variant={FOOD_TYPE_VARIANTS[ft]}>{FOOD_TYPE_LABELS[ft]}</Badge>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               <div>
                 <label className="mb-1 block text-sm font-medium">Images</label>
                 <Input type="file" accept="image/*" multiple />
@@ -244,7 +329,7 @@ export default function MenuPage() {
                   <div className="flex gap-2">
                     <Input placeholder="Variant name (e.g. Half)" className="flex-1" />
                     <Input placeholder="Price" type="number" className="w-24" />
-                    <Button className="text-xs">Add</Button>
+                    <Button type="button" className="text-xs">Add</Button>
                   </div>
                 </div>
               </div>
@@ -257,28 +342,25 @@ export default function MenuPage() {
                   <div className="flex gap-2">
                     <Input placeholder="Addon name (e.g. Extra Raita)" className="flex-1" />
                     <Input placeholder="Price" type="number" className="w-24" />
-                    <Button className="text-xs">Add</Button>
+                    <Button type="button" className="text-xs">Add</Button>
                   </div>
                 </div>
               </div>
 
-              {/* Discount Toggle */}
               <div className="flex items-center gap-2">
-                <input type="checkbox" id="discount" />
-                <label htmlFor="discount" className="text-sm font-medium">
-                  Enable Discount
-                </label>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="available" defaultChecked />
+                <input
+                  type="checkbox"
+                  id="available"
+                  checked={newProduct.available}
+                  onChange={(e) => setNewProduct((p) => ({ ...p, available: e.target.checked }))}
+                />
                 <label htmlFor="available" className="text-sm font-medium">
                   Available
                 </label>
               </div>
 
               <div className="flex gap-2">
-                <Button type="button">Save Product</Button>
+                <Button type="submit">Save Product</Button>
                 <Button
                   type="button"
                   className="bg-slate-200 text-slate-700 hover:bg-slate-300"
@@ -298,7 +380,7 @@ export default function MenuPage() {
           <div className="w-full max-w-md rounded-md bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="mb-4 text-lg font-semibold">Bulk Upload Products</h2>
             <p className="mb-3 text-sm text-slate-600">
-              Upload a CSV file with columns: name, category, price, description, available
+              Upload a CSV file with columns: category_name, name, description, base_price, availability
             </p>
             <Input type="file" accept=".csv" />
             <div className="mt-4 flex gap-2">
