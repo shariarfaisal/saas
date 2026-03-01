@@ -328,6 +328,7 @@ func (s *Server) registerRoutes(deps Deps) {
 			// Earnings & history
 			r.Get("/earnings", riderHandler.ListEarnings)
 			r.Get("/history", riderHandler.ListDeliveryHistory)
+			r.Post("/cash-remittance", financeHandler.RemitCashByRider)
 
 			// Order module rider routes
 			r.Route("/orders", func(r chi.Router) {
@@ -474,6 +475,27 @@ func (s *Server) registerRoutes(deps Deps) {
 		r.Post("/finance/invoices/generate", financeHandler.GenerateInvoice)
 		r.Patch("/finance/invoices/{id}/finalize", financeHandler.FinalizeInvoice)
 		r.Patch("/finance/invoices/{id}/mark-paid", financeHandler.MarkInvoicePaid)
+		r.Post("/finance/invoices/{id}/adjustments", financeHandler.CreateInvoiceAdjustment)
+		r.Get("/finance/invoices/{id}/adjustments", financeHandler.ListInvoiceAdjustments)
+
+		// Revenue reports (admin)
+		r.Get("/revenue/summary", financeHandler.GetRevenueSummary)
+		r.Get("/revenue/commission", financeHandler.GetCommissionReport)
+		r.Get("/revenue/delivery-fees", financeHandler.GetDeliveryFeeReport)
+
+		// Rider payouts (admin)
+		r.Get("/rider-payouts", financeHandler.ListRiderPayouts)
+		r.Post("/rider-payouts/{id}/approve", financeHandler.ApproveRiderPayout)
+
+		// Reconciliation alerts (admin)
+		r.Get("/reconciliation-alerts", financeHandler.ListReconciliationAlerts)
+		r.Patch("/reconciliation-alerts/{id}/resolve", financeHandler.ResolveReconciliationAlert)
+
+		// Cash collections (admin)
+		r.Get("/cash-collections", financeHandler.ListCashCollections)
+
+		// Subscription invoices (admin)
+		r.Get("/subscription-invoices", financeHandler.ListSubscriptionInvoices)
 
 		// Issue resolution (admin)
 		r.Patch("/issues/{id}/resolve", issueHandler.ResolveIssue)

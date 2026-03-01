@@ -85,10 +85,10 @@ INSERT INTO invoices (
     gross_sales, item_discounts, vendor_promo_discounts, net_sales, vat_collected,
     commission_rate, commission_amount, penalty_amount, adjustment_amount, adjustment_note,
     net_payable, total_orders, delivered_orders, cancelled_orders, rejected_orders,
-    status, generated_by, notes
+    status, generated_by, notes, delivery_charge_total
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
-) RETURNING id, tenant_id, restaurant_id, invoice_number, period_start, period_end, gross_sales, item_discounts, vendor_promo_discounts, net_sales, vat_collected, commission_rate, commission_amount, penalty_amount, adjustment_amount, adjustment_note, net_payable, total_orders, delivered_orders, cancelled_orders, rejected_orders, status, generated_by, finalized_by, finalized_at, paid_by, paid_at, payment_reference, notes, created_at, updated_at
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24
+) RETURNING id, tenant_id, restaurant_id, invoice_number, period_start, period_end, gross_sales, item_discounts, vendor_promo_discounts, net_sales, vat_collected, commission_rate, commission_amount, penalty_amount, adjustment_amount, adjustment_note, net_payable, total_orders, delivered_orders, cancelled_orders, rejected_orders, status, generated_by, finalized_by, finalized_at, paid_by, paid_at, payment_reference, notes, created_at, updated_at, delivery_charge_total
 `
 
 type CreateInvoiceParams struct {
@@ -115,6 +115,7 @@ type CreateInvoiceParams struct {
 	Status               InvoiceStatus  `json:"status"`
 	GeneratedBy          pgtype.UUID    `json:"generated_by"`
 	Notes                sql.NullString `json:"notes"`
+	DeliveryChargeTotal  pgtype.Numeric `json:"delivery_charge_total"`
 }
 
 func (q *Queries) CreateInvoice(ctx context.Context, arg CreateInvoiceParams) (Invoice, error) {
@@ -142,6 +143,7 @@ func (q *Queries) CreateInvoice(ctx context.Context, arg CreateInvoiceParams) (I
 		arg.Status,
 		arg.GeneratedBy,
 		arg.Notes,
+		arg.DeliveryChargeTotal,
 	)
 	var i Invoice
 	err := row.Scan(
@@ -176,6 +178,7 @@ func (q *Queries) CreateInvoice(ctx context.Context, arg CreateInvoiceParams) (I
 		&i.Notes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeliveryChargeTotal,
 	)
 	return i, err
 }
@@ -183,7 +186,7 @@ func (q *Queries) CreateInvoice(ctx context.Context, arg CreateInvoiceParams) (I
 const finalizeInvoice = `-- name: FinalizeInvoice :one
 UPDATE invoices SET status = 'finalized', finalized_by = $3, finalized_at = NOW(), notes = COALESCE($4, notes)
 WHERE id = $1 AND tenant_id = $2 AND status = 'draft'
-RETURNING id, tenant_id, restaurant_id, invoice_number, period_start, period_end, gross_sales, item_discounts, vendor_promo_discounts, net_sales, vat_collected, commission_rate, commission_amount, penalty_amount, adjustment_amount, adjustment_note, net_payable, total_orders, delivered_orders, cancelled_orders, rejected_orders, status, generated_by, finalized_by, finalized_at, paid_by, paid_at, payment_reference, notes, created_at, updated_at
+RETURNING id, tenant_id, restaurant_id, invoice_number, period_start, period_end, gross_sales, item_discounts, vendor_promo_discounts, net_sales, vat_collected, commission_rate, commission_amount, penalty_amount, adjustment_amount, adjustment_note, net_payable, total_orders, delivered_orders, cancelled_orders, rejected_orders, status, generated_by, finalized_by, finalized_at, paid_by, paid_at, payment_reference, notes, created_at, updated_at, delivery_charge_total
 `
 
 type FinalizeInvoiceParams struct {
@@ -233,6 +236,7 @@ func (q *Queries) FinalizeInvoice(ctx context.Context, arg FinalizeInvoiceParams
 		&i.Notes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeliveryChargeTotal,
 	)
 	return i, err
 }
@@ -272,7 +276,7 @@ func (q *Queries) GetFinanceSummary(ctx context.Context, tenantID uuid.UUID) (Ge
 }
 
 const getInvoiceByID = `-- name: GetInvoiceByID :one
-SELECT id, tenant_id, restaurant_id, invoice_number, period_start, period_end, gross_sales, item_discounts, vendor_promo_discounts, net_sales, vat_collected, commission_rate, commission_amount, penalty_amount, adjustment_amount, adjustment_note, net_payable, total_orders, delivered_orders, cancelled_orders, rejected_orders, status, generated_by, finalized_by, finalized_at, paid_by, paid_at, payment_reference, notes, created_at, updated_at FROM invoices WHERE id = $1 AND tenant_id = $2 LIMIT 1
+SELECT id, tenant_id, restaurant_id, invoice_number, period_start, period_end, gross_sales, item_discounts, vendor_promo_discounts, net_sales, vat_collected, commission_rate, commission_amount, penalty_amount, adjustment_amount, adjustment_note, net_payable, total_orders, delivered_orders, cancelled_orders, rejected_orders, status, generated_by, finalized_by, finalized_at, paid_by, paid_at, payment_reference, notes, created_at, updated_at, delivery_charge_total FROM invoices WHERE id = $1 AND tenant_id = $2 LIMIT 1
 `
 
 type GetInvoiceByIDParams struct {
@@ -315,12 +319,13 @@ func (q *Queries) GetInvoiceByID(ctx context.Context, arg GetInvoiceByIDParams) 
 		&i.Notes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeliveryChargeTotal,
 	)
 	return i, err
 }
 
 const getInvoiceByPeriod = `-- name: GetInvoiceByPeriod :one
-SELECT id, tenant_id, restaurant_id, invoice_number, period_start, period_end, gross_sales, item_discounts, vendor_promo_discounts, net_sales, vat_collected, commission_rate, commission_amount, penalty_amount, adjustment_amount, adjustment_note, net_payable, total_orders, delivered_orders, cancelled_orders, rejected_orders, status, generated_by, finalized_by, finalized_at, paid_by, paid_at, payment_reference, notes, created_at, updated_at FROM invoices
+SELECT id, tenant_id, restaurant_id, invoice_number, period_start, period_end, gross_sales, item_discounts, vendor_promo_discounts, net_sales, vat_collected, commission_rate, commission_amount, penalty_amount, adjustment_amount, adjustment_note, net_payable, total_orders, delivered_orders, cancelled_orders, rejected_orders, status, generated_by, finalized_by, finalized_at, paid_by, paid_at, payment_reference, notes, created_at, updated_at, delivery_charge_total FROM invoices
 WHERE tenant_id = $1 AND restaurant_id = $2 AND period_start = $3 AND period_end = $4
 LIMIT 1
 `
@@ -372,6 +377,7 @@ func (q *Queries) GetInvoiceByPeriod(ctx context.Context, arg GetInvoiceByPeriod
 		&i.Notes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeliveryChargeTotal,
 	)
 	return i, err
 }
@@ -472,7 +478,7 @@ func (q *Queries) ListActiveRestaurantsByTenant(ctx context.Context, tenantID uu
 }
 
 const listInvoicesByRestaurant = `-- name: ListInvoicesByRestaurant :many
-SELECT id, tenant_id, restaurant_id, invoice_number, period_start, period_end, gross_sales, item_discounts, vendor_promo_discounts, net_sales, vat_collected, commission_rate, commission_amount, penalty_amount, adjustment_amount, adjustment_note, net_payable, total_orders, delivered_orders, cancelled_orders, rejected_orders, status, generated_by, finalized_by, finalized_at, paid_by, paid_at, payment_reference, notes, created_at, updated_at FROM invoices
+SELECT id, tenant_id, restaurant_id, invoice_number, period_start, period_end, gross_sales, item_discounts, vendor_promo_discounts, net_sales, vat_collected, commission_rate, commission_amount, penalty_amount, adjustment_amount, adjustment_note, net_payable, total_orders, delivered_orders, cancelled_orders, rejected_orders, status, generated_by, finalized_by, finalized_at, paid_by, paid_at, payment_reference, notes, created_at, updated_at, delivery_charge_total FROM invoices
 WHERE restaurant_id = $1 AND tenant_id = $2
 ORDER BY period_end DESC
 LIMIT $3 OFFSET $4
@@ -531,6 +537,7 @@ func (q *Queries) ListInvoicesByRestaurant(ctx context.Context, arg ListInvoices
 			&i.Notes,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.DeliveryChargeTotal,
 		); err != nil {
 			return nil, err
 		}
@@ -543,7 +550,7 @@ func (q *Queries) ListInvoicesByRestaurant(ctx context.Context, arg ListInvoices
 }
 
 const listInvoicesByTenant = `-- name: ListInvoicesByTenant :many
-SELECT id, tenant_id, restaurant_id, invoice_number, period_start, period_end, gross_sales, item_discounts, vendor_promo_discounts, net_sales, vat_collected, commission_rate, commission_amount, penalty_amount, adjustment_amount, adjustment_note, net_payable, total_orders, delivered_orders, cancelled_orders, rejected_orders, status, generated_by, finalized_by, finalized_at, paid_by, paid_at, payment_reference, notes, created_at, updated_at FROM invoices
+SELECT id, tenant_id, restaurant_id, invoice_number, period_start, period_end, gross_sales, item_discounts, vendor_promo_discounts, net_sales, vat_collected, commission_rate, commission_amount, penalty_amount, adjustment_amount, adjustment_note, net_payable, total_orders, delivered_orders, cancelled_orders, rejected_orders, status, generated_by, finalized_by, finalized_at, paid_by, paid_at, payment_reference, notes, created_at, updated_at, delivery_charge_total FROM invoices
 WHERE tenant_id = $1
 ORDER BY period_end DESC
 LIMIT $2 OFFSET $3
@@ -596,6 +603,7 @@ func (q *Queries) ListInvoicesByTenant(ctx context.Context, arg ListInvoicesByTe
 			&i.Notes,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.DeliveryChargeTotal,
 		); err != nil {
 			return nil, err
 		}
@@ -722,7 +730,7 @@ func (q *Queries) ListOrderItemsByRestaurantAndPeriod(ctx context.Context, arg L
 const markInvoicePaid = `-- name: MarkInvoicePaid :one
 UPDATE invoices SET status = 'paid', paid_by = $3, paid_at = NOW(), payment_reference = $4, notes = COALESCE($5, notes)
 WHERE id = $1 AND tenant_id = $2 AND status = 'finalized'
-RETURNING id, tenant_id, restaurant_id, invoice_number, period_start, period_end, gross_sales, item_discounts, vendor_promo_discounts, net_sales, vat_collected, commission_rate, commission_amount, penalty_amount, adjustment_amount, adjustment_note, net_payable, total_orders, delivered_orders, cancelled_orders, rejected_orders, status, generated_by, finalized_by, finalized_at, paid_by, paid_at, payment_reference, notes, created_at, updated_at
+RETURNING id, tenant_id, restaurant_id, invoice_number, period_start, period_end, gross_sales, item_discounts, vendor_promo_discounts, net_sales, vat_collected, commission_rate, commission_amount, penalty_amount, adjustment_amount, adjustment_note, net_payable, total_orders, delivered_orders, cancelled_orders, rejected_orders, status, generated_by, finalized_by, finalized_at, paid_by, paid_at, payment_reference, notes, created_at, updated_at, delivery_charge_total
 `
 
 type MarkInvoicePaidParams struct {
@@ -774,6 +782,7 @@ func (q *Queries) MarkInvoicePaid(ctx context.Context, arg MarkInvoicePaidParams
 		&i.Notes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeliveryChargeTotal,
 	)
 	return i, err
 }

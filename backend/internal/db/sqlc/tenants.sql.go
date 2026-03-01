@@ -17,7 +17,7 @@ import (
 const createTenant = `-- name: CreateTenant :one
 INSERT INTO tenants (slug, name, status, plan, commission_rate, settings, contact_email, contact_phone, address, timezone, currency, locale, logo_url, favicon_url, primary_color, secondary_color, custom_domain)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-RETURNING id, slug, name, status, plan, subscription_plan_id, commission_rate, settings, custom_domain, logo_url, favicon_url, primary_color, secondary_color, contact_email, contact_phone, address, timezone, currency, locale, created_at, updated_at
+RETURNING id, slug, name, status, plan, subscription_plan_id, commission_rate, settings, custom_domain, logo_url, favicon_url, primary_color, secondary_color, contact_email, contact_phone, address, timezone, currency, locale, created_at, updated_at, billing_day
 `
 
 type CreateTenantParams struct {
@@ -83,12 +83,13 @@ func (q *Queries) CreateTenant(ctx context.Context, arg CreateTenantParams) (Ten
 		&i.Locale,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BillingDay,
 	)
 	return i, err
 }
 
 const getTenantByDomain = `-- name: GetTenantByDomain :one
-SELECT id, slug, name, status, plan, subscription_plan_id, commission_rate, settings, custom_domain, logo_url, favicon_url, primary_color, secondary_color, contact_email, contact_phone, address, timezone, currency, locale, created_at, updated_at FROM tenants WHERE custom_domain = $1 LIMIT 1
+SELECT id, slug, name, status, plan, subscription_plan_id, commission_rate, settings, custom_domain, logo_url, favicon_url, primary_color, secondary_color, contact_email, contact_phone, address, timezone, currency, locale, created_at, updated_at, billing_day FROM tenants WHERE custom_domain = $1 LIMIT 1
 `
 
 func (q *Queries) GetTenantByDomain(ctx context.Context, customDomain sql.NullString) (Tenant, error) {
@@ -116,12 +117,13 @@ func (q *Queries) GetTenantByDomain(ctx context.Context, customDomain sql.NullSt
 		&i.Locale,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BillingDay,
 	)
 	return i, err
 }
 
 const getTenantByID = `-- name: GetTenantByID :one
-SELECT id, slug, name, status, plan, subscription_plan_id, commission_rate, settings, custom_domain, logo_url, favicon_url, primary_color, secondary_color, contact_email, contact_phone, address, timezone, currency, locale, created_at, updated_at FROM tenants WHERE id = $1 LIMIT 1
+SELECT id, slug, name, status, plan, subscription_plan_id, commission_rate, settings, custom_domain, logo_url, favicon_url, primary_color, secondary_color, contact_email, contact_phone, address, timezone, currency, locale, created_at, updated_at, billing_day FROM tenants WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, error) {
@@ -149,12 +151,13 @@ func (q *Queries) GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, erro
 		&i.Locale,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BillingDay,
 	)
 	return i, err
 }
 
 const getTenantBySlug = `-- name: GetTenantBySlug :one
-SELECT id, slug, name, status, plan, subscription_plan_id, commission_rate, settings, custom_domain, logo_url, favicon_url, primary_color, secondary_color, contact_email, contact_phone, address, timezone, currency, locale, created_at, updated_at FROM tenants WHERE slug = $1 LIMIT 1
+SELECT id, slug, name, status, plan, subscription_plan_id, commission_rate, settings, custom_domain, logo_url, favicon_url, primary_color, secondary_color, contact_email, contact_phone, address, timezone, currency, locale, created_at, updated_at, billing_day FROM tenants WHERE slug = $1 LIMIT 1
 `
 
 func (q *Queries) GetTenantBySlug(ctx context.Context, slug string) (Tenant, error) {
@@ -182,12 +185,13 @@ func (q *Queries) GetTenantBySlug(ctx context.Context, slug string) (Tenant, err
 		&i.Locale,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BillingDay,
 	)
 	return i, err
 }
 
 const listTenants = `-- name: ListTenants :many
-SELECT id, slug, name, status, plan, subscription_plan_id, commission_rate, settings, custom_domain, logo_url, favicon_url, primary_color, secondary_color, contact_email, contact_phone, address, timezone, currency, locale, created_at, updated_at FROM tenants ORDER BY created_at DESC LIMIT $1 OFFSET $2
+SELECT id, slug, name, status, plan, subscription_plan_id, commission_rate, settings, custom_domain, logo_url, favicon_url, primary_color, secondary_color, contact_email, contact_phone, address, timezone, currency, locale, created_at, updated_at, billing_day FROM tenants ORDER BY created_at DESC LIMIT $1 OFFSET $2
 `
 
 type ListTenantsParams struct {
@@ -226,6 +230,7 @@ func (q *Queries) ListTenants(ctx context.Context, arg ListTenantsParams) ([]Ten
 			&i.Locale,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.BillingDay,
 		); err != nil {
 			return nil, err
 		}
@@ -253,7 +258,7 @@ UPDATE tenants SET
   currency = COALESCE($12, currency),
   locale = COALESCE($13, locale)
 WHERE id = $14
-RETURNING id, slug, name, status, plan, subscription_plan_id, commission_rate, settings, custom_domain, logo_url, favicon_url, primary_color, secondary_color, contact_email, contact_phone, address, timezone, currency, locale, created_at, updated_at
+RETURNING id, slug, name, status, plan, subscription_plan_id, commission_rate, settings, custom_domain, logo_url, favicon_url, primary_color, secondary_color, contact_email, contact_phone, address, timezone, currency, locale, created_at, updated_at, billing_day
 `
 
 type UpdateTenantParams struct {
@@ -313,12 +318,13 @@ func (q *Queries) UpdateTenant(ctx context.Context, arg UpdateTenantParams) (Ten
 		&i.Locale,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BillingDay,
 	)
 	return i, err
 }
 
 const updateTenantStatus = `-- name: UpdateTenantStatus :one
-UPDATE tenants SET status = $2 WHERE id = $1 RETURNING id, slug, name, status, plan, subscription_plan_id, commission_rate, settings, custom_domain, logo_url, favicon_url, primary_color, secondary_color, contact_email, contact_phone, address, timezone, currency, locale, created_at, updated_at
+UPDATE tenants SET status = $2 WHERE id = $1 RETURNING id, slug, name, status, plan, subscription_plan_id, commission_rate, settings, custom_domain, logo_url, favicon_url, primary_color, secondary_color, contact_email, contact_phone, address, timezone, currency, locale, created_at, updated_at, billing_day
 `
 
 type UpdateTenantStatusParams struct {
@@ -351,6 +357,7 @@ func (q *Queries) UpdateTenantStatus(ctx context.Context, arg UpdateTenantStatus
 		&i.Locale,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BillingDay,
 	)
 	return i, err
 }
