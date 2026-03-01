@@ -113,6 +113,10 @@ func RateLimited() *AppError {
 	return New(CodeRateLimited, "rate limit exceeded, please try again later")
 }
 
+func UnprocessableEntity(message string) *AppError {
+	return New(CodeUnprocessable, message)
+}
+
 func codeToStatus(code Code) int {
 	switch code {
 	case CodeNotFound:

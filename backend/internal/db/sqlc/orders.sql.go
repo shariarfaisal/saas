@@ -471,22 +471,16 @@ func (q *Queries) UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusPa
 }
 
 const generateOrderNumber = `-- name: GenerateOrderNumber :one
-SELECT CONCAT(
-    $1::TEXT, '-',
-    LPAD((COALESCE(
-        (SELECT COUNT(*) + 1 FROM orders WHERE tenant_id = $2),
-        1
-    ))::TEXT, 6, '0')
-) AS order_number
+SELECT next_order_number($1::UUID, $2::TEXT) AS order_number
 `
 
 type GenerateOrderNumberParams struct {
-	Prefix   string    `json:"prefix"`
-	TenantID uuid.UUID `json:"tenant_id"`
+	RestaurantID uuid.UUID `json:"restaurant_id"`
+	Prefix       string    `json:"prefix"`
 }
 
 func (q *Queries) GenerateOrderNumber(ctx context.Context, arg GenerateOrderNumberParams) (interface{}, error) {
-	row := q.db.QueryRow(ctx, generateOrderNumber, arg.Prefix, arg.TenantID)
+	row := q.db.QueryRow(ctx, generateOrderNumber, arg.RestaurantID, arg.Prefix)
 	var order_number interface{}
 	err := row.Scan(&order_number)
 	return order_number, err

@@ -508,9 +508,14 @@ func (q *Queries) ReleaseStock(ctx context.Context, arg ReleaseStockParams) (Inv
 const reserveStock = `-- name: ReserveStock :one
 UPDATE inventory_items
 SET reserved_qty = reserved_qty + $1::INT
-WHERE product_id = $2 AND restaurant_id = $3
-  AND tenant_id = $4
-  AND stock_qty - reserved_qty >= $1::INT
+WHERE id = (
+    SELECT id FROM inventory_items
+    WHERE product_id = $2 AND restaurant_id = $3
+      AND tenant_id = $4
+      AND stock_qty - reserved_qty >= $1::INT
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED
+)
 RETURNING id, product_id, restaurant_id, tenant_id, stock_qty, reserved_qty, cost_price, reorder_threshold, last_restocked_at, updated_at
 `
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/munchies/platform/backend/internal/db/sqlc"
 	redisclient "github.com/munchies/platform/backend/internal/platform/redis"
 	"github.com/rs/zerolog/log"
@@ -12,14 +13,16 @@ import (
 // Worker manages background job processing.
 type Worker struct {
 	q     *sqlc.Queries
+	pool  *pgxpool.Pool
 	redis *redisclient.Client
 	stop  chan struct{}
 }
 
 // NewWorker creates a new background worker.
-func NewWorker(q *sqlc.Queries, redis *redisclient.Client) *Worker {
+func NewWorker(q *sqlc.Queries, pool *pgxpool.Pool, redis *redisclient.Client) *Worker {
 	return &Worker{
 		q:     q,
+		pool:  pool,
 		redis: redis,
 		stop:  make(chan struct{}),
 	}

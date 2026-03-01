@@ -148,8 +148,8 @@ func (s *Server) registerRoutes(deps Deps) {
 	promoHandler := promomod.NewHandler(promoSvc)
 
 	// Order module
-	orderSvc := ordermod.NewService(deps.Queries, deps.Pool, inventorySvc, promoSvc)
-	orderHandler := ordermod.NewHandler(orderSvc)
+	orderSvc := ordermod.NewService(deps.Queries, deps.Pool, inventorySvc, promoSvc, deliverySvc)
+	orderHandler := ordermod.NewHandler(orderSvc, deps.Redis)
 
 	// Payment gateways
 	paymentGateways := map[sqlc.PaymentMethod]gatewaypkg.Gateway{
@@ -207,7 +207,7 @@ func (s *Server) registerRoutes(deps Deps) {
 	sseHandler := ssemod.NewHandler(deps.Redis)
 
 	// Background worker
-	s.worker = workermod.NewWorker(deps.Queries, deps.Redis)
+	s.worker = workermod.NewWorker(deps.Queries, deps.Pool, deps.Redis)
 
 	// Ledger service (seed platform accounts)
 	ledgerSvc := financemod.NewLedgerService(deps.Queries)
@@ -332,6 +332,7 @@ func (s *Server) registerRoutes(deps Deps) {
 			// Order module rider routes
 			r.Route("/orders", func(r chi.Router) {
 				r.Patch("/{id}/picked/{restaurantID}", orderHandler.PickedByRider)
+				r.Patch("/{id}/deliver", orderHandler.MarkDelivered)
 			})
 		})
 

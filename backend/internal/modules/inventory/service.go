@@ -186,6 +186,22 @@ func (s *Service) ReleaseStockForOrder(ctx context.Context, q *sqlc.Queries, ten
 	return nil
 }
 
+// ConsumeReservedStock permanently deducts reserved stock (called when order is picked up).
+func (s *Service) ConsumeReservedStock(ctx context.Context, q *sqlc.Queries, tenantID uuid.UUID, items []StockReservation) error {
+	for _, item := range items {
+		_, err := q.ConsumeReservedStock(ctx, sqlc.ConsumeReservedStockParams{
+			Qty:          item.Quantity,
+			ProductID:    item.ProductID,
+			RestaurantID: item.RestaurantID,
+			TenantID:     tenantID,
+		})
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return apperror.Internal("consume reserved stock", err)
+		}
+	}
+	return nil
+}
+
 // StockReservation represents a stock reservation request for a product.
 type StockReservation struct {
 	ProductID    uuid.UUID
