@@ -2,8 +2,10 @@ package order
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -13,17 +15,19 @@ import (
 	"github.com/munchies/platform/backend/internal/pkg/apperror"
 	"github.com/munchies/platform/backend/internal/pkg/pagination"
 	"github.com/munchies/platform/backend/internal/pkg/respond"
+	redisclient "github.com/munchies/platform/backend/internal/platform/redis"
 	"github.com/shopspring/decimal"
 )
 
 // Handler handles order HTTP requests.
 type Handler struct {
-	svc *Service
+	svc   *Service
+	redis *redisclient.Client
 }
 
 // NewHandler creates a new order handler.
-func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *Service, redis *redisclient.Client) *Handler {
+	return &Handler{svc: svc, redis: redis}
 }
 
 // CalculateCharges handles POST /api/v1/orders/charges/calculate
@@ -356,6 +360,7 @@ func (h *Handler) TrackOrder(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -365,11 +370,48 @@ func (h *Handler) TrackOrder(w http.ResponseWriter, r *http.Request) {
 
 	// Send initial state
 	data, _ := json.Marshal(result)
-	_, _ = w.Write([]byte("data: " + string(data) + "\n\n"))
+	fmt.Fprintf(w, "data: %s\n\n", string(data))
 	flusher.Flush()
 
-	// Keep connection open until client disconnects
-	<-r.Context().Done()
+	// Subscribe to Redis for live updates if available, otherwise heartbeat-only
+	if h.redis != nil {
+		channel := fmt.Sprintf("order:%s", orderID.String())
+		pubsub := h.redis.Subscribe(r.Context(), channel)
+		defer pubsub.Close()
+
+		ch := pubsub.Channel()
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case msg, ok := <-ch:
+				if !ok {
+					return
+				}
+				fmt.Fprintf(w, "data: %s\n\n", msg.Payload)
+				flusher.Flush()
+			case <-ticker.C:
+				fmt.Fprintf(w, ": heartbeat\n\n")
+				flusher.Flush()
+			}
+		}
+	}
+
+	// Fallback: heartbeat-only when Redis is not available
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			fmt.Fprintf(w, ": heartbeat\n\n")
+			flusher.Flush()
+		}
+	}
 }
 
 // CancelOrder handles PATCH /api/v1/orders/{id}/cancel
@@ -610,6 +652,33 @@ func (h *Handler) PickedByRider(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := h.svc.MarkPickedByRider(r.Context(), t.ID, orderID, restaurantID, u.ID)
+	if err != nil {
+		respond.Error(w, toAppError(err))
+		return
+	}
+	respond.JSON(w, http.StatusOK, result)
+}
+
+// MarkDelivered handles PATCH /rider/orders/{id}/deliver
+func (h *Handler) MarkDelivered(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFromContext(r.Context())
+	if u == nil {
+		respond.Error(w, apperror.Unauthorized("authentication required"))
+		return
+	}
+	t := tenant.FromContext(r.Context())
+	if t == nil {
+		respond.Error(w, apperror.NotFound("tenant"))
+		return
+	}
+
+	orderID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		respond.Error(w, apperror.BadRequest("invalid order id"))
+		return
+	}
+
+	result, err := h.svc.MarkDelivered(r.Context(), t.ID, orderID, u.ID)
 	if err != nil {
 		respond.Error(w, toAppError(err))
 		return

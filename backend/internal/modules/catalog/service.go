@@ -137,6 +137,20 @@ type CreateProductRequest struct {
 
 // CreateProduct creates a new product.
 func (s *Service) CreateProduct(ctx context.Context, tenantID uuid.UUID, req CreateProductRequest) (*sqlc.Product, error) {
+	// Section 13: Validate that category belongs to the same restaurant
+	if req.CategoryID.Valid {
+		cat, err := s.repo.GetCategoryByID(ctx, req.CategoryID.Bytes, tenantID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, apperror.BadRequest("category not found")
+			}
+			return nil, apperror.Internal("get category", err)
+		}
+		if cat.RestaurantID.Valid && cat.RestaurantID.Bytes != req.RestaurantID {
+			return nil, apperror.BadRequest("category does not belong to this restaurant")
+		}
+	}
+
 	prodSlug := slug.Generate(req.Name)
 	if req.Availability == "" {
 		req.Availability = sqlc.ProductAvailAvailable
@@ -207,6 +221,27 @@ type UpdateProductRequest struct {
 
 // UpdateProduct updates a product.
 func (s *Service) UpdateProduct(ctx context.Context, id, tenantID uuid.UUID, req UpdateProductRequest) (*sqlc.Product, error) {
+	// Section 13: Validate that category belongs to the same product's restaurant
+	if req.CategoryID.Valid {
+		existing, err := s.repo.GetProductByID(ctx, id, tenantID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, apperror.NotFound("product")
+			}
+			return nil, apperror.Internal("get product", err)
+		}
+		cat, err := s.repo.GetCategoryByID(ctx, req.CategoryID.Bytes, tenantID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, apperror.BadRequest("category not found")
+			}
+			return nil, apperror.Internal("get category", err)
+		}
+		if cat.RestaurantID.Valid && cat.RestaurantID.Bytes != existing.RestaurantID {
+			return nil, apperror.BadRequest("category does not belong to this restaurant")
+		}
+	}
+
 	p, err := s.repo.UpdateProduct(ctx, sqlc.UpdateProductParams{
 		ID:          id,
 		TenantID:    tenantID,

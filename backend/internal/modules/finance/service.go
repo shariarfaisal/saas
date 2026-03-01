@@ -70,12 +70,45 @@ func (s *Service) GenerateForRestaurant(ctx context.Context, tenantID, restauran
 	}
 
 	vendorPromoDiscounts := decimal.Zero
-	netSales := grossSales.Sub(itemDiscounts).Sub(vendorPromoDiscounts)
+	// Fetch vendor-funded promo discounts for the period
+	if promoTotal, err := s.q.GetVendorPromoDiscountsForInvoice(ctx, sqlc.GetVendorPromoDiscountsForInvoiceParams{
+		RestaurantID: restaurantID,
+		TenantID:     tenantID,
+		PeriodStart:  periodStart,
+		PeriodEnd:    periodEnd,
+	}); err == nil {
+		vendorPromoDiscounts = pgNumericToDecimal(promoTotal)
+	}
+
 	penaltyAmount := decimal.Zero
+	// Fetch restaurant penalty amounts for the period
+	if penaltyTotal, err := s.q.GetPenaltyAmountForInvoice(ctx, sqlc.GetPenaltyAmountForInvoiceParams{
+		RestaurantID: restaurantID,
+		PeriodStart:  periodStart,
+		PeriodEnd:    periodEnd,
+		TenantID:     tenantID,
+	}); err == nil {
+		penaltyAmount = pgNumericToDecimal(penaltyTotal)
+	}
+
+	deliveryChargeTotal := decimal.Zero
+	// Fetch delivery charge total for platform-managed restaurants
+	if dcTotal, err := s.q.GetDeliveryChargeTotalForInvoice(ctx, sqlc.GetDeliveryChargeTotalForInvoiceParams{
+		RestaurantID: restaurantID,
+		TenantID:     tenantID,
+		PeriodStart:  periodStart,
+		PeriodEnd:    periodEnd,
+	}); err == nil {
+		deliveryChargeTotal = pgNumericToDecimal(dcTotal)
+	}
+
+	netSales := grossSales.Sub(itemDiscounts).Sub(vendorPromoDiscounts)
 	adjustmentAmount := decimal.Zero
 
-	// net_payable = net_sales + vat_collected - commission_amount - penalty - adjustment
-	netPayable := netSales.Add(vatCollected).Sub(commissionTotal).Sub(penaltyAmount).Sub(adjustmentAmount)
+	// net_payable = gross_sales - item_discounts - vendor_promo_discounts - commission_amount - penalty_amount + adjustment_amount
+	// Per design.md: VAT collected is tracked separately; not part of vendor net payable.
+	// delivery_charge_total is retained by the platform when delivery_managed_by = 'platform'.
+	netPayable := netSales.Sub(commissionTotal).Sub(penaltyAmount).Add(adjustmentAmount).Add(deliveryChargeTotal)
 
 	// Get order counts for the period
 	counts, err := s.q.CountOrdersByRestaurantAndPeriod(ctx, sqlc.CountOrdersByRestaurantAndPeriodParams{
@@ -112,6 +145,7 @@ func (s *Service) GenerateForRestaurant(ctx context.Context, tenantID, restauran
 		RejectedOrders:       counts.RejectedOrders,
 		Status:               sqlc.InvoiceStatusDraft,
 		GeneratedBy:          toPgUUIDPtr(generatedBy),
+		DeliveryChargeTotal:  toPgNumeric(deliveryChargeTotal),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create invoice: %w", err)
@@ -198,6 +232,140 @@ func (s *Service) MarkPaid(ctx context.Context, tenantID, invoiceID, actorID uui
 		return nil, err
 	}
 	return &inv, nil
+}
+
+// RevenueReport holds aggregated revenue summary data.
+type RevenueReport struct {
+	CommissionCurrentMonth  string `json:"commission_current_month"`
+	CommissionPreviousMonth string `json:"commission_previous_month"`
+	DeliveryCurrentMonth    string `json:"delivery_current_month"`
+	DeliveryPreviousMonth   string `json:"delivery_previous_month"`
+}
+
+// CreateAdjustment adds an adjustment (credit or debit) to an invoice.
+func (s *Service) CreateAdjustment(ctx context.Context, invoiceID, adminID uuid.UUID, amount decimal.Decimal, direction, reason string) (*sqlc.InvoiceAdjustment, error) {
+	adj, err := s.q.CreateInvoiceAdjustment(ctx, sqlc.CreateInvoiceAdjustmentParams{
+		InvoiceID:        invoiceID,
+		Amount:           toPgNumeric(amount),
+		Direction:        direction,
+		Reason:           reason,
+		CreatedByAdminID: toPgUUID(adminID),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create invoice adjustment: %w", err)
+	}
+	return &adj, nil
+}
+
+// ListAdjustments returns all adjustments for an invoice.
+func (s *Service) ListAdjustments(ctx context.Context, invoiceID uuid.UUID) ([]sqlc.InvoiceAdjustment, error) {
+	items, err := s.q.ListInvoiceAdjustments(ctx, invoiceID)
+	if err != nil {
+		return nil, fmt.Errorf("list invoice adjustments: %w", err)
+	}
+	return items, nil
+}
+
+// GetRevenueSummary returns aggregated commission and delivery fee revenue.
+func (s *Service) GetRevenueSummary(ctx context.Context) (*RevenueReport, error) {
+	comm, err := s.q.GetCommissionRevenueSummary(ctx)
+	if err != nil {
+		return nil, apperror.Internal("get commission summary", err)
+	}
+	del, err := s.q.GetDeliveryFeeRevenueSummary(ctx)
+	if err != nil {
+		return nil, apperror.Internal("get delivery fee summary", err)
+	}
+	return &RevenueReport{
+		CommissionCurrentMonth:  pgNumericToDecimal(comm.CurrentMonth).String(),
+		CommissionPreviousMonth: pgNumericToDecimal(comm.PreviousMonth).String(),
+		DeliveryCurrentMonth:    pgNumericToDecimal(del.CurrentMonth).String(),
+		DeliveryPreviousMonth:   pgNumericToDecimal(del.PreviousMonth).String(),
+	}, nil
+}
+
+// ListRiderPayouts returns paginated rider payouts.
+func (s *Service) ListRiderPayouts(ctx context.Context, page, perPage int) ([]sqlc.RiderPayout, pagination.Meta, error) {
+	limit, offset := pagination.FormatLimitOffset(page, perPage)
+	items, err := s.q.ListRiderPayouts(ctx, sqlc.ListRiderPayoutsParams{
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
+	if err != nil {
+		return nil, pagination.Meta{}, apperror.Internal("list rider payouts", err)
+	}
+	return items, pagination.NewMeta(int64(len(items)), limit, ""), nil
+}
+
+// ApproveRiderPayout marks a rider payout as processing.
+func (s *Service) ApproveRiderPayout(ctx context.Context, payoutID, adminID uuid.UUID) (*sqlc.RiderPayout, error) {
+	p, err := s.q.ApproveRiderPayout(ctx, sqlc.ApproveRiderPayoutParams{
+		ID:          payoutID,
+		ProcessedBy: toPgUUID(adminID),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperror.NotFound("payout not found or not in pending status")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("approve rider payout: %w", err)
+	}
+	return &p, nil
+}
+
+// ListOpenAlerts returns paginated open reconciliation alerts.
+func (s *Service) ListOpenAlerts(ctx context.Context, page, perPage int) ([]sqlc.ReconciliationAlert, pagination.Meta, error) {
+	limit, offset := pagination.FormatLimitOffset(page, perPage)
+	items, err := s.q.ListOpenReconciliationAlerts(ctx, sqlc.ListOpenReconciliationAlertsParams{
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
+	if err != nil {
+		return nil, pagination.Meta{}, apperror.Internal("list reconciliation alerts", err)
+	}
+	return items, pagination.NewMeta(int64(len(items)), limit, ""), nil
+}
+
+// ResolveAlert resolves a reconciliation alert.
+func (s *Service) ResolveAlert(ctx context.Context, alertID, adminID uuid.UUID, notes string) (*sqlc.ReconciliationAlert, error) {
+	alert, err := s.q.ResolveReconciliationAlert(ctx, sqlc.ResolveReconciliationAlertParams{
+		ID:              alertID,
+		ResolutionNotes: toNullStringVal(notes),
+		ResolvedBy:      toPgUUID(adminID),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperror.NotFound("alert not found or already resolved")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("resolve reconciliation alert: %w", err)
+	}
+	return &alert, nil
+}
+
+// ListCashCollections returns paginated cash collection records for a tenant.
+func (s *Service) ListCashCollections(ctx context.Context, tenantID uuid.UUID, page, perPage int) ([]sqlc.CashCollectionRecord, pagination.Meta, error) {
+	limit, offset := pagination.FormatLimitOffset(page, perPage)
+	items, err := s.q.ListCashCollectionRecords(ctx, sqlc.ListCashCollectionRecordsParams{
+		TenantID: tenantID,
+		Limit:    int32(limit),
+		Offset:   int32(offset),
+	})
+	if err != nil {
+		return nil, pagination.Meta{}, apperror.Internal("list cash collections", err)
+	}
+	return items, pagination.NewMeta(int64(len(items)), limit, ""), nil
+}
+
+// ListSubscriptionInvoices returns paginated subscription invoices.
+func (s *Service) ListSubscriptionInvoices(ctx context.Context, page, perPage int) ([]sqlc.SubscriptionInvoice, pagination.Meta, error) {
+	limit, offset := pagination.FormatLimitOffset(page, perPage)
+	items, err := s.q.ListSubscriptionInvoices(ctx, sqlc.ListSubscriptionInvoicesParams{
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
+	if err != nil {
+		return nil, pagination.Meta{}, apperror.Internal("list subscription invoices", err)
+	}
+	return items, pagination.NewMeta(int64(len(items)), limit, ""), nil
 }
 
 // pgDateFromTime converts a time.Time to pgtype.Date for SQLC.

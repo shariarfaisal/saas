@@ -2,8 +2,11 @@ package worker
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/munchies/platform/backend/internal/db/sqlc"
 	"github.com/rs/zerolog/log"
 )
@@ -35,7 +38,7 @@ func (w *Worker) AutoConfirmOrders(ctx context.Context) error {
 	return nil
 }
 
-// AutoCancelOrders cancels pending orders older than 30 minutes.
+// AutoCancelOrders cancels pending orders older than 30 minutes, releasing reserved stock.
 func (w *Worker) AutoCancelOrders(ctx context.Context) error {
 	olderThan := time.Now().Add(-30 * time.Minute)
 	orders, err := w.q.ListPendingOrdersPastTimeout(ctx, sqlc.ListPendingOrdersPastTimeoutParams{
@@ -48,12 +51,7 @@ func (w *Worker) AutoCancelOrders(ctx context.Context) error {
 
 	cancelled := 0
 	for _, order := range orders {
-		_, err := w.q.UpdateOrderStatus(ctx, sqlc.UpdateOrderStatusParams{
-			ID:       order.ID,
-			TenantID: order.TenantID,
-			Status:   sqlc.OrderStatusCancelled,
-		})
-		if err != nil {
+		if err := w.cancelPendingOrder(ctx, order); err != nil {
 			log.Error().Err(err).Str("order_id", order.ID.String()).Msg("failed to auto-cancel order")
 			continue
 		}
@@ -61,9 +59,87 @@ func (w *Worker) AutoCancelOrders(ctx context.Context) error {
 	}
 
 	if cancelled > 0 {
-		log.Info().Int("count", cancelled).Msg("auto-cancelled pending orders")
+		log.Info().Int("count", cancelled).Msg("auto-cancelled pending orders (payment timeout)")
 	}
 	return nil
+}
+
+// cancelPendingOrder cancels a single pending order with stock release and outbox event.
+func (w *Worker) cancelPendingOrder(ctx context.Context, order sqlc.Order) error {
+	tx, err := w.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := w.q.WithTx(tx)
+
+	// Release reserved stock
+	items, err := qtx.GetOrderItemsByOrder(ctx, order.ID)
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		if _, err := qtx.ReleaseStock(ctx, sqlc.ReleaseStockParams{
+			Qty:          item.Quantity,
+			ProductID:    item.ProductID,
+			RestaurantID: item.RestaurantID,
+			TenantID:     order.TenantID,
+		}); err != nil {
+			log.Warn().Err(err).
+				Str("order_id", order.ID.String()).
+				Str("product_id", item.ProductID.String()).
+				Msg("failed to release stock during payment timeout cancellation")
+		}
+	}
+
+	// Transition order status to cancelled
+	_, err = qtx.TransitionOrderStatus(ctx, sqlc.TransitionOrderStatusParams{
+		NewStatus:          sqlc.OrderStatusCancelled,
+		CancellationReason: sql.NullString{String: "payment timeout", Valid: true},
+		CancelledBy:        sqlc.NullActorType{ActorType: sqlc.ActorTypeSystem, Valid: true},
+		RejectionReason:    sql.NullString{},
+		RejectedBy:         sqlc.NullActorType{},
+		ID:                 order.ID,
+		TenantID:           order.TenantID,
+	})
+	if err != nil {
+		return err
+	}
+
+	// Add timeline event
+	if _, err := qtx.AddTimelineEvent(ctx, sqlc.AddTimelineEventParams{
+		OrderID:        order.ID,
+		TenantID:       order.TenantID,
+		EventType:      "payment_timeout",
+		PreviousStatus: sqlc.NullOrderStatus{OrderStatus: sqlc.OrderStatusPending, Valid: true},
+		NewStatus:      sqlc.NullOrderStatus{OrderStatus: sqlc.OrderStatusCancelled, Valid: true},
+		Description:    "Order cancelled due to payment timeout",
+		ActorID:        pgtype.UUID{},
+		ActorType:      sqlc.ActorTypeSystem,
+		Metadata:       json.RawMessage("{}"),
+	}); err != nil {
+		log.Warn().Err(err).Str("order_id", order.ID.String()).Msg("failed to add timeline event for payment timeout")
+	}
+
+	// Create outbox event
+	payload, _ := json.Marshal(map[string]interface{}{
+		"order_id":  order.ID.String(),
+		"tenant_id": order.TenantID.String(),
+		"reason":    "payment_timeout",
+	})
+	if _, err := qtx.CreateOutboxEvent(ctx, sqlc.CreateOutboxEventParams{
+		TenantID:      pgtype.UUID{Bytes: order.TenantID, Valid: true},
+		AggregateType: "order",
+		AggregateID:   order.ID,
+		EventType:     "order.payment_timeout",
+		Payload:       payload,
+		MaxAttempts:   5,
+	}); err != nil {
+		log.Warn().Err(err).Str("order_id", order.ID.String()).Msg("failed to create outbox event for payment timeout")
+	}
+
+	return tx.Commit(ctx)
 }
 
 // CleanupNotifications purges notifications older than 90 days.

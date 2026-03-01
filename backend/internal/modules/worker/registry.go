@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/munchies/platform/backend/internal/db/sqlc"
 	redisclient "github.com/munchies/platform/backend/internal/platform/redis"
 	"github.com/rs/zerolog/log"
@@ -12,14 +13,16 @@ import (
 // Worker manages background job processing.
 type Worker struct {
 	q     *sqlc.Queries
+	pool  *pgxpool.Pool
 	redis *redisclient.Client
 	stop  chan struct{}
 }
 
 // NewWorker creates a new background worker.
-func NewWorker(q *sqlc.Queries, redis *redisclient.Client) *Worker {
+func NewWorker(q *sqlc.Queries, pool *pgxpool.Pool, redis *redisclient.Client) *Worker {
 	return &Worker{
 		q:     q,
+		pool:  pool,
 		redis: redis,
 		stop:  make(chan struct{}),
 	}
@@ -34,6 +37,10 @@ func (w *Worker) Start(ctx context.Context) {
 	go w.runPeriodic(ctx, "order:auto_cancel", 5*time.Minute, w.AutoCancelOrders)
 	go w.runPeriodic(ctx, "notifications:cleanup", 24*time.Hour, w.CleanupNotifications)
 	go w.runPeriodic(ctx, "outbox:process", 10*time.Second, w.ProcessOutboxEvents)
+	go w.runPeriodic(ctx, "finance:payout", 24*time.Hour, w.GenerateWeeklyPayouts)
+	go w.runPeriodic(ctx, "finance:reconcile", 1*time.Hour, w.ReconcilePayments)
+	go w.runPeriodic(ctx, "finance:subscription_billing", 24*time.Hour, w.GenerateSubscriptionInvoices)
+	go w.runPeriodic(ctx, "finance:cod_overdue", 1*time.Hour, w.MarkOverdueCOD)
 
 	log.Info().Msg("all background workers started")
 }

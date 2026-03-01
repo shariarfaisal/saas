@@ -27,7 +27,7 @@ func (q *Queries) CountRestaurantsByTenant(ctx context.Context, tenantID uuid.UU
 const createRestaurant = `-- name: CreateRestaurant :one
 INSERT INTO restaurants (tenant_id, hub_id, owner_id, name, slug, type, description, short_description, banner_image_url, logo_url, gallery_urls, phone, email, address_line1, address_line2, area, city, cuisines, tags, commission_rate, vat_rate, is_vat_inclusive, min_order_amount, avg_prep_time_minutes, max_concurrent_orders, auto_accept_orders, order_prefix, is_available, is_featured, is_active, sort_order)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31)
-RETURNING id, tenant_id, hub_id, owner_id, name, slug, type, description, short_description, banner_image_url, logo_url, gallery_urls, phone, email, address_line1, address_line2, area, city, geo_lat, geo_lng, cuisines, tags, commission_rate, vat_rate, is_vat_inclusive, min_order_amount, avg_prep_time_minutes, max_concurrent_orders, auto_accept_orders, order_prefix, order_sequence, is_available, is_featured, is_active, sort_order, meta_title, meta_description, meta_keywords, rating_avg, rating_count, total_order_count, created_at, updated_at
+RETURNING id, tenant_id, hub_id, owner_id, name, slug, type, description, short_description, banner_image_url, logo_url, gallery_urls, phone, email, address_line1, address_line2, area, city, geo_lat, geo_lng, cuisines, tags, commission_rate, vat_rate, is_vat_inclusive, min_order_amount, avg_prep_time_minutes, max_concurrent_orders, auto_accept_orders, order_prefix, order_sequence, is_available, is_featured, is_active, sort_order, meta_title, meta_description, meta_keywords, rating_avg, rating_count, total_order_count, created_at, updated_at, delivery_managed_by
 `
 
 type CreateRestaurantParams struct {
@@ -143,6 +143,7 @@ func (q *Queries) CreateRestaurant(ctx context.Context, arg CreateRestaurantPara
 		&i.TotalOrderCount,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeliveryManagedBy,
 	)
 	return i, err
 }
@@ -171,7 +172,7 @@ func (q *Queries) DeleteRestaurant(ctx context.Context, arg DeleteRestaurantPara
 }
 
 const getRestaurantByID = `-- name: GetRestaurantByID :one
-SELECT id, tenant_id, hub_id, owner_id, name, slug, type, description, short_description, banner_image_url, logo_url, gallery_urls, phone, email, address_line1, address_line2, area, city, geo_lat, geo_lng, cuisines, tags, commission_rate, vat_rate, is_vat_inclusive, min_order_amount, avg_prep_time_minutes, max_concurrent_orders, auto_accept_orders, order_prefix, order_sequence, is_available, is_featured, is_active, sort_order, meta_title, meta_description, meta_keywords, rating_avg, rating_count, total_order_count, created_at, updated_at FROM restaurants WHERE id = $1 AND tenant_id = $2 LIMIT 1
+SELECT id, tenant_id, hub_id, owner_id, name, slug, type, description, short_description, banner_image_url, logo_url, gallery_urls, phone, email, address_line1, address_line2, area, city, geo_lat, geo_lng, cuisines, tags, commission_rate, vat_rate, is_vat_inclusive, min_order_amount, avg_prep_time_minutes, max_concurrent_orders, auto_accept_orders, order_prefix, order_sequence, is_available, is_featured, is_active, sort_order, meta_title, meta_description, meta_keywords, rating_avg, rating_count, total_order_count, created_at, updated_at, delivery_managed_by FROM restaurants WHERE id = $1 AND tenant_id = $2 LIMIT 1
 `
 
 type GetRestaurantByIDParams struct {
@@ -226,12 +227,13 @@ func (q *Queries) GetRestaurantByID(ctx context.Context, arg GetRestaurantByIDPa
 		&i.TotalOrderCount,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeliveryManagedBy,
 	)
 	return i, err
 }
 
 const getRestaurantBySlug = `-- name: GetRestaurantBySlug :one
-SELECT id, tenant_id, hub_id, owner_id, name, slug, type, description, short_description, banner_image_url, logo_url, gallery_urls, phone, email, address_line1, address_line2, area, city, geo_lat, geo_lng, cuisines, tags, commission_rate, vat_rate, is_vat_inclusive, min_order_amount, avg_prep_time_minutes, max_concurrent_orders, auto_accept_orders, order_prefix, order_sequence, is_available, is_featured, is_active, sort_order, meta_title, meta_description, meta_keywords, rating_avg, rating_count, total_order_count, created_at, updated_at FROM restaurants WHERE tenant_id = $1 AND slug = $2 LIMIT 1
+SELECT id, tenant_id, hub_id, owner_id, name, slug, type, description, short_description, banner_image_url, logo_url, gallery_urls, phone, email, address_line1, address_line2, area, city, geo_lat, geo_lng, cuisines, tags, commission_rate, vat_rate, is_vat_inclusive, min_order_amount, avg_prep_time_minutes, max_concurrent_orders, auto_accept_orders, order_prefix, order_sequence, is_available, is_featured, is_active, sort_order, meta_title, meta_description, meta_keywords, rating_avg, rating_count, total_order_count, created_at, updated_at, delivery_managed_by FROM restaurants WHERE tenant_id = $1 AND slug = $2 LIMIT 1
 `
 
 type GetRestaurantBySlugParams struct {
@@ -286,12 +288,13 @@ func (q *Queries) GetRestaurantBySlug(ctx context.Context, arg GetRestaurantBySl
 		&i.TotalOrderCount,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeliveryManagedBy,
 	)
 	return i, err
 }
 
 const listAvailableByHubAndArea = `-- name: ListAvailableByHubAndArea :many
-SELECT r.id, r.tenant_id, r.hub_id, r.owner_id, r.name, r.slug, r.type, r.description, r.short_description, r.banner_image_url, r.logo_url, r.gallery_urls, r.phone, r.email, r.address_line1, r.address_line2, r.area, r.city, r.geo_lat, r.geo_lng, r.cuisines, r.tags, r.commission_rate, r.vat_rate, r.is_vat_inclusive, r.min_order_amount, r.avg_prep_time_minutes, r.max_concurrent_orders, r.auto_accept_orders, r.order_prefix, r.order_sequence, r.is_available, r.is_featured, r.is_active, r.sort_order, r.meta_title, r.meta_description, r.meta_keywords, r.rating_avg, r.rating_count, r.total_order_count, r.created_at, r.updated_at FROM restaurants r
+SELECT r.id, r.tenant_id, r.hub_id, r.owner_id, r.name, r.slug, r.type, r.description, r.short_description, r.banner_image_url, r.logo_url, r.gallery_urls, r.phone, r.email, r.address_line1, r.address_line2, r.area, r.city, r.geo_lat, r.geo_lng, r.cuisines, r.tags, r.commission_rate, r.vat_rate, r.is_vat_inclusive, r.min_order_amount, r.avg_prep_time_minutes, r.max_concurrent_orders, r.auto_accept_orders, r.order_prefix, r.order_sequence, r.is_available, r.is_featured, r.is_active, r.sort_order, r.meta_title, r.meta_description, r.meta_keywords, r.rating_avg, r.rating_count, r.total_order_count, r.created_at, r.updated_at, r.delivery_managed_by FROM restaurants r
 JOIN hub_coverage_areas hca ON hca.hub_id = r.hub_id AND hca.slug = $2 AND hca.is_active = true
 WHERE r.tenant_id = $1 AND r.is_available = true AND r.is_active = true
 ORDER BY r.is_featured DESC, r.sort_order, r.name
@@ -363,6 +366,7 @@ func (q *Queries) ListAvailableByHubAndArea(ctx context.Context, arg ListAvailab
 			&i.TotalOrderCount,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.DeliveryManagedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -407,7 +411,7 @@ func (q *Queries) ListOperatingHours(ctx context.Context, restaurantID uuid.UUID
 }
 
 const listRestaurantsByTenant = `-- name: ListRestaurantsByTenant :many
-SELECT id, tenant_id, hub_id, owner_id, name, slug, type, description, short_description, banner_image_url, logo_url, gallery_urls, phone, email, address_line1, address_line2, area, city, geo_lat, geo_lng, cuisines, tags, commission_rate, vat_rate, is_vat_inclusive, min_order_amount, avg_prep_time_minutes, max_concurrent_orders, auto_accept_orders, order_prefix, order_sequence, is_available, is_featured, is_active, sort_order, meta_title, meta_description, meta_keywords, rating_avg, rating_count, total_order_count, created_at, updated_at FROM restaurants WHERE tenant_id = $1 AND is_active = true ORDER BY sort_order, name LIMIT $2 OFFSET $3
+SELECT id, tenant_id, hub_id, owner_id, name, slug, type, description, short_description, banner_image_url, logo_url, gallery_urls, phone, email, address_line1, address_line2, area, city, geo_lat, geo_lng, cuisines, tags, commission_rate, vat_rate, is_vat_inclusive, min_order_amount, avg_prep_time_minutes, max_concurrent_orders, auto_accept_orders, order_prefix, order_sequence, is_available, is_featured, is_active, sort_order, meta_title, meta_description, meta_keywords, rating_avg, rating_count, total_order_count, created_at, updated_at, delivery_managed_by FROM restaurants WHERE tenant_id = $1 AND is_active = true ORDER BY sort_order, name LIMIT $2 OFFSET $3
 `
 
 type ListRestaurantsByTenantParams struct {
@@ -469,6 +473,7 @@ func (q *Queries) ListRestaurantsByTenant(ctx context.Context, arg ListRestauran
 			&i.TotalOrderCount,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.DeliveryManagedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -500,7 +505,7 @@ UPDATE restaurants SET
   is_featured = COALESCE($16, is_featured),
   sort_order = COALESCE($17, sort_order)
 WHERE id = $18 AND tenant_id = $19
-RETURNING id, tenant_id, hub_id, owner_id, name, slug, type, description, short_description, banner_image_url, logo_url, gallery_urls, phone, email, address_line1, address_line2, area, city, geo_lat, geo_lng, cuisines, tags, commission_rate, vat_rate, is_vat_inclusive, min_order_amount, avg_prep_time_minutes, max_concurrent_orders, auto_accept_orders, order_prefix, order_sequence, is_available, is_featured, is_active, sort_order, meta_title, meta_description, meta_keywords, rating_avg, rating_count, total_order_count, created_at, updated_at
+RETURNING id, tenant_id, hub_id, owner_id, name, slug, type, description, short_description, banner_image_url, logo_url, gallery_urls, phone, email, address_line1, address_line2, area, city, geo_lat, geo_lng, cuisines, tags, commission_rate, vat_rate, is_vat_inclusive, min_order_amount, avg_prep_time_minutes, max_concurrent_orders, auto_accept_orders, order_prefix, order_sequence, is_available, is_featured, is_active, sort_order, meta_title, meta_description, meta_keywords, rating_avg, rating_count, total_order_count, created_at, updated_at, delivery_managed_by
 `
 
 type UpdateRestaurantParams struct {
@@ -592,12 +597,13 @@ func (q *Queries) UpdateRestaurant(ctx context.Context, arg UpdateRestaurantPara
 		&i.TotalOrderCount,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeliveryManagedBy,
 	)
 	return i, err
 }
 
 const updateRestaurantAvailability = `-- name: UpdateRestaurantAvailability :one
-UPDATE restaurants SET is_available = $2 WHERE id = $1 AND tenant_id = $3 RETURNING id, tenant_id, hub_id, owner_id, name, slug, type, description, short_description, banner_image_url, logo_url, gallery_urls, phone, email, address_line1, address_line2, area, city, geo_lat, geo_lng, cuisines, tags, commission_rate, vat_rate, is_vat_inclusive, min_order_amount, avg_prep_time_minutes, max_concurrent_orders, auto_accept_orders, order_prefix, order_sequence, is_available, is_featured, is_active, sort_order, meta_title, meta_description, meta_keywords, rating_avg, rating_count, total_order_count, created_at, updated_at
+UPDATE restaurants SET is_available = $2 WHERE id = $1 AND tenant_id = $3 RETURNING id, tenant_id, hub_id, owner_id, name, slug, type, description, short_description, banner_image_url, logo_url, gallery_urls, phone, email, address_line1, address_line2, area, city, geo_lat, geo_lng, cuisines, tags, commission_rate, vat_rate, is_vat_inclusive, min_order_amount, avg_prep_time_minutes, max_concurrent_orders, auto_accept_orders, order_prefix, order_sequence, is_available, is_featured, is_active, sort_order, meta_title, meta_description, meta_keywords, rating_avg, rating_count, total_order_count, created_at, updated_at, delivery_managed_by
 `
 
 type UpdateRestaurantAvailabilityParams struct {
@@ -653,6 +659,7 @@ func (q *Queries) UpdateRestaurantAvailability(ctx context.Context, arg UpdateRe
 		&i.TotalOrderCount,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeliveryManagedBy,
 	)
 	return i, err
 }

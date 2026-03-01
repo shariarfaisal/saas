@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS next_order_number(UUID, TEXT);

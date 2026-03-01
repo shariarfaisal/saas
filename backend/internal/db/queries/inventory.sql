@@ -43,9 +43,14 @@ RETURNING *;
 -- name: ReserveStock :one
 UPDATE inventory_items
 SET reserved_qty = reserved_qty + sqlc.arg(qty)::INT
-WHERE product_id = sqlc.arg(product_id) AND restaurant_id = sqlc.arg(restaurant_id)
-  AND tenant_id = sqlc.arg(tenant_id)
-  AND stock_qty - reserved_qty >= sqlc.arg(qty)::INT
+WHERE id = (
+    SELECT id FROM inventory_items
+    WHERE product_id = sqlc.arg(product_id) AND restaurant_id = sqlc.arg(restaurant_id)
+      AND tenant_id = sqlc.arg(tenant_id)
+      AND stock_qty - reserved_qty >= sqlc.arg(qty)::INT
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED
+)
 RETURNING *;
 
 -- name: ReleaseStock :one

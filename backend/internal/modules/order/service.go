@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/munchies/platform/backend/internal/db/sqlc"
+	"github.com/munchies/platform/backend/internal/modules/delivery"
 	"github.com/munchies/platform/backend/internal/modules/inventory"
 	"github.com/munchies/platform/backend/internal/modules/promo"
 	"github.com/munchies/platform/backend/internal/pkg/apperror"
@@ -22,15 +23,16 @@ import (
 
 // Service handles order business logic.
 type Service struct {
-	q        *sqlc.Queries
-	pool     *pgxpool.Pool
-	invSvc   *inventory.Service
-	promoSvc *promo.Service
+	q           *sqlc.Queries
+	pool        *pgxpool.Pool
+	invSvc      *inventory.Service
+	promoSvc    *promo.Service
+	deliverySvc *delivery.Service
 }
 
 // NewService creates a new order service.
-func NewService(q *sqlc.Queries, pool *pgxpool.Pool, invSvc *inventory.Service, promoSvc *promo.Service) *Service {
-	return &Service{q: q, pool: pool, invSvc: invSvc, promoSvc: promoSvc}
+func NewService(q *sqlc.Queries, pool *pgxpool.Pool, invSvc *inventory.Service, promoSvc *promo.Service, deliverySvc *delivery.Service) *Service {
+	return &Service{q: q, pool: pool, invSvc: invSvc, promoSvc: promoSvc, deliverySvc: deliverySvc}
 }
 
 // --- Request/Response Types ---
@@ -118,6 +120,51 @@ type OrderDetail struct {
 	Timeline []sqlc.OrderTimelineEvent `json:"timeline,omitempty"`
 }
 
+// pgNumericToDecimal converts a pgtype.Numeric to decimal.Decimal.
+func pgNumericToDecimal(n pgtype.Numeric) decimal.Decimal {
+	if !n.Valid {
+		return decimal.Zero
+	}
+	f, err := n.Float64Value()
+	if err != nil {
+		return decimal.Zero
+	}
+	return decimal.NewFromFloat(f.Float64)
+}
+
+// toPgNumeric converts a decimal.Decimal to pgtype.Numeric.
+func toPgNumeric(d decimal.Decimal) pgtype.Numeric {
+	n := pgtype.Numeric{Valid: true}
+	_ = n.Scan(d.String())
+	return n
+}
+
+// distributePromoDiscount distributes a total promo discount proportionally across item subtotals.
+func distributePromoDiscount(itemSubtotals []decimal.Decimal, totalDiscount decimal.Decimal) []decimal.Decimal {
+	result := make([]decimal.Decimal, len(itemSubtotals))
+	if totalDiscount.IsZero() {
+		return result
+	}
+	totalSubtotal := decimal.Zero
+	for _, s := range itemSubtotals {
+		totalSubtotal = totalSubtotal.Add(s)
+	}
+	if totalSubtotal.IsZero() {
+		return result
+	}
+	distributed := decimal.Zero
+	for i, sub := range itemSubtotals {
+		if i == len(itemSubtotals)-1 {
+			result[i] = totalDiscount.Sub(distributed)
+		} else {
+			share := totalDiscount.Mul(sub).Div(totalSubtotal).Round(2)
+			result[i] = share
+			distributed = distributed.Add(share)
+		}
+	}
+	return result
+}
+
 // CalculateCharges pre-calculates order charges without creating an order.
 func (s *Service) CalculateCharges(ctx context.Context, req CalculateChargesRequest) (*ChargeBreakdown, error) {
 	if len(req.Items) == 0 {
@@ -182,8 +229,22 @@ func (s *Service) CalculateCharges(ctx context.Context, req CalculateChargesRequ
 		}
 	}
 
-	// Calculate delivery charge (simplified zone-based)
-	deliveryCharge := decimal.NewFromInt(60) // default delivery charge in BDT
+	// Calculate zone-based delivery charge using first restaurant's hub
+	deliveryCharge := decimal.NewFromInt(60) // default
+	if s.deliverySvc != nil && req.DeliveryArea != "" && len(req.Items) > 0 {
+		// Look up hub from first restaurant
+		firstRestID := req.Items[0].RestaurantID
+		rest, err := s.q.GetRestaurantByID(ctx, sqlc.GetRestaurantByIDParams{
+			ID:       firstRestID,
+			TenantID: req.TenantID,
+		})
+		if err == nil && rest.HubID.Valid {
+			calcResult, err := s.deliverySvc.Calculate(ctx, req.TenantID, rest.HubID.Bytes, req.DeliveryArea)
+			if err == nil {
+				deliveryCharge = pgNumericToDecimal(calcResult.DeliveryCharge)
+			}
+		}
+	}
 	serviceFee := decimal.Zero
 
 	totalAmount := subtotal.Sub(itemDiscountTotal).Sub(promoDiscountTotal).Add(vatTotal).Add(deliveryCharge).Add(serviceFee)
@@ -228,10 +289,29 @@ func (s *Service) CreateOrder(ctx context.Context, req CreateOrderRequest) (*Ord
 
 	qtx := s.q.WithTx(tx)
 
-	// 1. Generate order number
-	orderNumResult, err := qtx.GenerateOrderNumber(ctx, sqlc.GenerateOrderNumberParams{
-		Prefix:   "MUN",
+	// 1. Look up first restaurant for order number and delivery charge
+	firstRestID := req.Items[0].RestaurantID
+	firstRest, err := qtx.GetRestaurantByID(ctx, sqlc.GetRestaurantByIDParams{
+		ID:       firstRestID,
 		TenantID: req.TenantID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperror.NotFound("restaurant")
+	}
+	if err != nil {
+		return nil, apperror.Internal("get restaurant", err)
+	}
+
+	// Determine order prefix from restaurant
+	orderPrefix := "ORD"
+	if firstRest.OrderPrefix.Valid && firstRest.OrderPrefix.String != "" {
+		orderPrefix = firstRest.OrderPrefix.String
+	}
+
+	// Generate order number via restaurant sequence
+	orderNumResult, err := qtx.GenerateOrderNumber(ctx, sqlc.GenerateOrderNumberParams{
+		RestaurantID: firstRestID,
+		Prefix:       orderPrefix,
 	})
 	if err != nil {
 		return nil, apperror.Internal("generate order number", err)
@@ -251,6 +331,7 @@ func (s *Service) CreateOrder(ctx context.Context, req CreateOrderRequest) (*Ord
 		ItemTotal     decimal.Decimal
 	}
 	itemCalcs := make([]itemCalc, len(req.Items))
+	itemSubtotals := make([]decimal.Decimal, len(req.Items))
 
 	for i, item := range req.Items {
 		is := item.UnitPrice.Add(item.ModifierPrice).Mul(decimal.NewFromInt32(item.Quantity))
@@ -263,6 +344,7 @@ func (s *Service) CreateOrder(ctx context.Context, req CreateOrderRequest) (*Ord
 			PromoDiscount: decimal.Zero,
 			ItemTotal:     it,
 		}
+		itemSubtotals[i] = is
 
 		subtotal = subtotal.Add(is)
 		itemDiscountTotal = itemDiscountTotal.Add(item.ItemDiscount)
@@ -316,12 +398,50 @@ func (s *Service) CreateOrder(ctx context.Context, req CreateOrderRequest) (*Ord
 		promoSnapshot = snapshot
 	}
 
-	// 5. Calculate delivery charge and totals
-	deliveryCharge := decimal.NewFromInt(60)
+	// 4b. Distribute promo discount proportionally across items (Section 5)
+	if promoDiscountTotal.IsPositive() {
+		promoShares := distributePromoDiscount(itemSubtotals, promoDiscountTotal)
+		for i, share := range promoShares {
+			itemCalcs[i].PromoDiscount = share
+			// Recalculate item total with promo discount
+			itemCalcs[i].ItemTotal = itemCalcs[i].ItemSubtotal.Sub(itemCalcs[i].ItemDiscount).Add(itemCalcs[i].ItemVat).Sub(share)
+		}
+	}
+
+	// 5. Calculate zone-based delivery charge and totals
+	deliveryCharge := decimal.NewFromInt(60) // default
+	if s.deliverySvc != nil && req.DeliveryArea != "" && firstRest.HubID.Valid {
+		calcResult, err := s.deliverySvc.Calculate(ctx, req.TenantID, firstRest.HubID.Bytes, req.DeliveryArea)
+		if err == nil {
+			deliveryCharge = pgNumericToDecimal(calcResult.DeliveryCharge)
+		}
+	}
 	serviceFee := decimal.Zero
 	totalAmount := subtotal.Sub(itemDiscountTotal).Sub(promoDiscountTotal).Add(vatTotal).Add(deliveryCharge).Add(serviceFee)
 	if totalAmount.IsNegative() {
 		totalAmount = decimal.Zero
+	}
+
+	// 5b. Handle wallet payment (Section 6)
+	if req.PaymentMethod == sqlc.PaymentMethodWallet {
+		walletBalancePg, err := qtx.GetUserWalletBalance(ctx, req.CustomerID)
+		if err != nil {
+			return nil, apperror.Internal("get wallet balance", err)
+		}
+		walletBalance := pgNumericToDecimal(walletBalancePg)
+		if walletBalance.LessThan(totalAmount) {
+			return nil, apperror.BadRequest("insufficient wallet balance")
+		}
+		// Deduct from wallet
+		if err := qtx.DebitUserWallet(ctx, sqlc.DebitUserWalletParams{
+			ID:     req.CustomerID,
+			Amount: toPgNumeric(totalAmount),
+		}); err != nil {
+			return nil, apperror.Internal("debit wallet", err)
+		}
+		// Record wallet transaction (orderID not available yet — will be created momentarily)
+		initialPaymentStatus = sqlc.PaymentStatusPaid
+		initialStatus = sqlc.OrderStatusCreated
 	}
 
 	// 6. Auto-confirm timestamp
@@ -477,6 +597,18 @@ func (s *Service) CreateOrder(ctx context.Context, req CreateOrderRequest) (*Ord
 		}
 		pickupTotal := pickupSubtotal.Sub(pickupDiscount).Add(pickupVat)
 
+		// Section 3: Calculate commission from restaurant's commission_rate
+		commRate := decimal.Zero
+		commAmount := decimal.Zero
+		rest, restErr := qtx.GetRestaurantByID(ctx, sqlc.GetRestaurantByIDParams{
+			ID:       restID,
+			TenantID: req.TenantID,
+		})
+		if restErr == nil && rest.CommissionRate.Valid {
+			commRate = pgNumericToDecimal(rest.CommissionRate)
+			commAmount = pickupSubtotal.Mul(commRate).Div(decimal.NewFromInt(100)).Round(2)
+		}
+
 		pSubPg := pgtype.Numeric{Valid: true}
 		_ = pSubPg.Scan(pickupSubtotal.String())
 		pDiscPg := pgtype.Numeric{Valid: true}
@@ -485,10 +617,8 @@ func (s *Service) CreateOrder(ctx context.Context, req CreateOrderRequest) (*Ord
 		_ = pVatPg.Scan(pickupVat.String())
 		pTotalPg := pgtype.Numeric{Valid: true}
 		_ = pTotalPg.Scan(pickupTotal.String())
-		commRatePg := pgtype.Numeric{Valid: true}
-		_ = commRatePg.Scan("0")
-		commAmtPg := pgtype.Numeric{Valid: true}
-		_ = commAmtPg.Scan("0")
+		commRatePg := toPgNumeric(commRate)
+		commAmtPg := toPgNumeric(commAmount)
 
 		pickupNumber := fmt.Sprintf("%s-P%d", orderNumber, pickupIdx)
 		pickup, err := qtx.CreateOrderPickup(ctx, sqlc.CreateOrderPickupParams{
@@ -702,8 +832,8 @@ func (s *Service) ConfirmOrder(ctx context.Context, tenantID, orderID, restauran
 		return nil, apperror.Internal("get order", err)
 	}
 
-	if order.Status != sqlc.OrderStatusCreated {
-		return nil, apperror.BadRequest("order can only be confirmed from CREATED status")
+	if err := ValidateTransition(order.Status, sqlc.OrderStatusConfirmed); err != nil {
+		return nil, err
 	}
 
 	// Transition pickup status
@@ -790,8 +920,8 @@ func (s *Service) RejectOrder(ctx context.Context, tenantID, orderID, restaurant
 		return nil, apperror.Internal("get order", err)
 	}
 
-	if order.Status != sqlc.OrderStatusCreated {
-		return nil, apperror.BadRequest("order can only be rejected from CREATED status")
+	if err := ValidateTransition(order.Status, sqlc.OrderStatusRejected); err != nil {
+		return nil, err
 	}
 
 	// Reject the pickup for this restaurant
@@ -900,8 +1030,8 @@ func (s *Service) MarkPreparing(ctx context.Context, tenantID, orderID, restaura
 		return nil, apperror.Internal("get order", err)
 	}
 
-	if order.Status != sqlc.OrderStatusConfirmed && order.Status != sqlc.OrderStatusCreated {
-		return nil, apperror.BadRequest("order must be in CONFIRMED or CREATED status to mark as preparing")
+	if err := ValidateTransition(order.Status, sqlc.OrderStatusPreparing); err != nil {
+		return nil, err
 	}
 
 	_, err = qtx.TransitionPickupStatus(ctx, sqlc.TransitionPickupStatusParams{
@@ -973,8 +1103,8 @@ func (s *Service) MarkReady(ctx context.Context, tenantID, orderID, restaurantID
 		return nil, apperror.Internal("get order", err)
 	}
 
-	if order.Status != sqlc.OrderStatusPreparing && order.Status != sqlc.OrderStatusConfirmed {
-		return nil, apperror.BadRequest("order must be in PREPARING or CONFIRMED status to mark as ready")
+	if err := ValidateTransition(order.Status, sqlc.OrderStatusReady); err != nil {
+		return nil, err
 	}
 
 	_, err = qtx.TransitionPickupStatus(ctx, sqlc.TransitionPickupStatusParams{
@@ -1054,8 +1184,8 @@ func (s *Service) MarkPickedByRider(ctx context.Context, tenantID, orderID, rest
 		return nil, apperror.Internal("get order", err)
 	}
 
-	if order.Status != sqlc.OrderStatusReady && order.Status != sqlc.OrderStatusPreparing {
-		return nil, apperror.BadRequest("order must be in READY or PREPARING status for pickup")
+	if err := ValidateTransition(order.Status, sqlc.OrderStatusPicked); err != nil {
+		return nil, err
 	}
 
 	// Mark this restaurant's pickup as PICKED
@@ -1094,6 +1224,23 @@ func (s *Service) MarkPickedByRider(ctx context.Context, tenantID, orderID, rest
 		})
 		if err != nil {
 			return nil, apperror.Internal("transition order status", err)
+		}
+
+		// Section 10: Consume reserved stock (permanently deduct)
+		allItems, err := qtx.GetOrderItemsByOrder(ctx, orderID)
+		if err != nil {
+			return nil, apperror.Internal("get items for stock consume", err)
+		}
+		stockConsumes := make([]inventory.StockReservation, 0, len(allItems))
+		for _, item := range allItems {
+			stockConsumes = append(stockConsumes, inventory.StockReservation{
+				ProductID:    item.ProductID,
+				RestaurantID: item.RestaurantID,
+				Quantity:     item.Quantity,
+			})
+		}
+		if err := s.invSvc.ConsumeReservedStock(ctx, qtx, tenantID, stockConsumes); err != nil {
+			return nil, err
 		}
 	}
 
@@ -1143,8 +1290,8 @@ func (s *Service) CancelOrder(ctx context.Context, tenantID, orderID, customerID
 		return nil, apperror.Forbidden("you can only cancel your own orders")
 	}
 
-	if order.Status != sqlc.OrderStatusPending && order.Status != sqlc.OrderStatusCreated {
-		return nil, apperror.BadRequest("order can only be cancelled in PENDING or CREATED status")
+	if err := ValidateTransition(order.Status, sqlc.OrderStatusCancelled); err != nil {
+		return nil, err
 	}
 
 	// Release stock
@@ -1500,4 +1647,80 @@ func (s *Service) GetOrderItemsByRestaurant(ctx context.Context, orderID, restau
 		OrderID:      orderID,
 		RestaurantID: restaurantID,
 	})
+}
+
+// MarkDelivered transitions a PICKED order to DELIVERED (Section 7).
+func (s *Service) MarkDelivered(ctx context.Context, tenantID, orderID, riderID uuid.UUID) (*sqlc.Order, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, apperror.Internal("begin transaction", err)
+	}
+	defer tx.Rollback(ctx)
+	qtx := s.q.WithTx(tx)
+
+	order, err := qtx.GetOrderForUpdate(ctx, sqlc.GetOrderForUpdateParams{
+		ID:       orderID,
+		TenantID: tenantID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperror.NotFound("order")
+	}
+	if err != nil {
+		return nil, apperror.Internal("get order", err)
+	}
+
+	if err := ValidateTransition(order.Status, sqlc.OrderStatusDelivered); err != nil {
+		return nil, err
+	}
+
+	updated, err := qtx.TransitionOrderStatus(ctx, sqlc.TransitionOrderStatusParams{
+		NewStatus:          sqlc.OrderStatusDelivered,
+		CancellationReason: sql.NullString{},
+		CancelledBy:        sqlc.NullActorType{},
+		RejectionReason:    sql.NullString{},
+		RejectedBy:         sqlc.NullActorType{},
+		ID:                 orderID,
+		TenantID:           tenantID,
+	})
+	if err != nil {
+		return nil, apperror.Internal("mark order delivered", err)
+	}
+
+	_, err = qtx.AddTimelineEvent(ctx, sqlc.AddTimelineEventParams{
+		OrderID:        orderID,
+		TenantID:       tenantID,
+		EventType:      "status_changed",
+		PreviousStatus: sqlc.NullOrderStatus{OrderStatus: sqlc.OrderStatusPicked, Valid: true},
+		NewStatus:      sqlc.NullOrderStatus{OrderStatus: sqlc.OrderStatusDelivered, Valid: true},
+		Description:    "Order delivered to customer",
+		ActorID:        pgtype.UUID{Bytes: riderID, Valid: true},
+		ActorType:      sqlc.ActorTypeRider,
+		Metadata:       json.RawMessage("{}"),
+	})
+	if err != nil {
+		return nil, apperror.Internal("add timeline event", err)
+	}
+
+	payload, _ := json.Marshal(map[string]interface{}{
+		"order_id":  orderID.String(),
+		"tenant_id": tenantID.String(),
+		"rider_id":  riderID.String(),
+	})
+	_, err = qtx.CreateOutboxEvent(ctx, sqlc.CreateOutboxEventParams{
+		TenantID:      pgtype.UUID{Bytes: tenantID, Valid: true},
+		AggregateType: "order",
+		AggregateID:   orderID,
+		EventType:     "order.delivered",
+		Payload:       payload,
+		MaxAttempts:   5,
+	})
+	if err != nil {
+		return nil, apperror.Internal("create outbox event", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, apperror.Internal("commit transaction", err)
+	}
+
+	return &updated, nil
 }

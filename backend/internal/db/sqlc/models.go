@@ -2013,6 +2013,17 @@ type Invoice struct {
 	Notes                sql.NullString     `json:"notes"`
 	CreatedAt            time.Time          `json:"created_at"`
 	UpdatedAt            time.Time          `json:"updated_at"`
+	DeliveryChargeTotal  pgtype.Numeric     `json:"delivery_charge_total"`
+}
+
+type InvoiceAdjustment struct {
+	ID               uuid.UUID      `json:"id"`
+	InvoiceID        uuid.UUID      `json:"invoice_id"`
+	Amount           pgtype.Numeric `json:"amount"`
+	Direction        string         `json:"direction"`
+	Reason           string         `json:"reason"`
+	CreatedByAdminID pgtype.UUID    `json:"created_by_admin_id"`
+	CreatedAt        time.Time      `json:"created_at"`
 }
 
 type LedgerAccount struct {
@@ -2498,6 +2509,7 @@ type Restaurant struct {
 	TotalOrderCount     int32          `json:"total_order_count"`
 	CreatedAt           time.Time      `json:"created_at"`
 	UpdatedAt           time.Time      `json:"updated_at"`
+	DeliveryManagedBy   string         `json:"delivery_managed_by"`
 }
 
 type RestaurantOperatingHour struct {
@@ -2713,6 +2725,42 @@ type Tenant struct {
 	Locale             string          `json:"locale"`
 	CreatedAt          time.Time       `json:"created_at"`
 	UpdatedAt          time.Time       `json:"updated_at"`
+	BillingDay         int32           `json:"billing_day"`
+}
+
+type CashCollectionRecord struct {
+	ID          uuid.UUID          `json:"id"`
+	TenantID    uuid.UUID          `json:"tenant_id"`
+	RiderID     uuid.UUID          `json:"rider_id"`
+	OrderID     uuid.UUID          `json:"order_id"`
+	Amount      pgtype.Numeric     `json:"amount"`
+	Status      string             `json:"status"`
+	CollectedAt time.Time          `json:"collected_at"`
+	RemittedAt  pgtype.Timestamptz `json:"remitted_at"`
+}
+
+type ReconciliationAlert struct {
+	ID                   uuid.UUID          `json:"id"`
+	TenantID             pgtype.UUID        `json:"tenant_id"`
+	PaymentTransactionID pgtype.UUID        `json:"payment_transaction_id"`
+	AlertType            string             `json:"alert_type"`
+	Status               string             `json:"status"`
+	ResolutionNotes      sql.NullString     `json:"resolution_notes"`
+	ResolvedBy           pgtype.UUID        `json:"resolved_by"`
+	ResolvedAt           pgtype.Timestamptz `json:"resolved_at"`
+	CreatedAt            time.Time          `json:"created_at"`
+}
+
+type SubscriptionInvoice struct {
+	ID                 uuid.UUID          `json:"id"`
+	TenantID           uuid.UUID          `json:"tenant_id"`
+	Amount             pgtype.Numeric     `json:"amount"`
+	Status             string             `json:"status"`
+	BillingPeriodStart pgtype.Date        `json:"billing_period_start"`
+	BillingPeriodEnd   pgtype.Date        `json:"billing_period_end"`
+	DueDate            pgtype.Date        `json:"due_date"`
+	PaidAt             pgtype.Timestamptz `json:"paid_at"`
+	CreatedAt          time.Time          `json:"created_at"`
 }
 
 type TenantPaymentGateway struct {

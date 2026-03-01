@@ -159,13 +159,7 @@ WHERE id = $1 AND tenant_id = $2
 RETURNING *;
 
 -- name: GenerateOrderNumber :one
-SELECT CONCAT(
-    sqlc.arg(prefix)::TEXT, '-',
-    LPAD((COALESCE(
-        (SELECT COUNT(*) + 1 FROM orders WHERE tenant_id = sqlc.arg(tenant_id)),
-        1
-    ))::TEXT, 6, '0')
-) AS order_number;
+SELECT next_order_number(sqlc.arg(restaurant_id)::UUID, sqlc.arg(prefix)::TEXT) AS order_number;
 
 -- name: GetOrderForUpdate :one
 SELECT * FROM orders
