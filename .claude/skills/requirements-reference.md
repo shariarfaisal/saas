@@ -1,36 +1,75 @@
 ---
-title: Requirements Reference
-description: Complete documentation of Munchies SaaS requirements
-tags: [reference, requirements]
+title: Requirements & Domain Reference
+description: Quick reference for all Munchies requirements and domain knowledge
+tags: [reference, requirements, domain]
 ---
 
-# Requirements Reference Skill
+# Requirements & Domain Reference
 
-Complete index of requirements documentation needed when implementing features.
+## Requirements Index
 
-## Feature Requirements
+| Doc | Content | Read When |
+|-----|---------|-----------|
+| 01 | Vision & goals | Understanding business context |
+| 02 | User stories | Implementing user-facing features |
+| 03 | Multi-tenancy | Any tenant-scoped work |
+| 04 | Domain model | Understanding entities & relationships |
+| 05 | Feature requirements | Implementing any feature |
+| 06 | Portals & roles | Auth, permissions, RBAC |
+| 07 | Order lifecycle | Order flows, state machine |
+| 08 | Pricing & financials | Commission, payments, invoices |
+| 09 | Database schema | Any DB/migration work |
+| 10 | API design | Any endpoint work |
+| 11 | Notifications | Push, SMS, email, SSE |
+| 12 | Analytics | Reports, dashboards, metrics |
+| 13 | Infrastructure | Deployment, monitoring, scaling |
 
-See `docs/requirements/05-feature-requirements.md` for:
+All docs at: `docs/requirements/{number}-{name}.md`
 
-- Core platform features
-- Feature flags and toggles
-- Feature dependencies
-- Priority levels
+## Domain Entities (Key Relationships)
 
-## Domain Knowledge
+```
+Platform
+  └── Tenant (vendor business)
+        ├── Restaurant(s)
+        │     ├── Categories → Products (menu items)
+        │     ├── Operating hours
+        │     └── Inventory stocks
+        ├── Orders
+        │     ├── Order items (JSONB snapshot at order time)
+        │     ├── Payment transactions
+        │     └── Delivery assignment → Rider
+        ├── Promotions (scoped to tenant)
+        ├── Riders (tenant-owned fleet)
+        ├── Invoices & payouts (settlement)
+        └── Users (customers, staff, managers)
+```
 
-- **04-domain-model.md** - Entities, relationships, business logic
-- **06-portals-and-roles.md** - User roles and portal types
-- **07-order-lifecycle.md** - Order states and transitions
-- **08-pricing-and-financials.md** - Billing, pricing models
-- **11-notifications.md** - Event-driven notification system
-- **12-analytics.md** - Metrics and analytics requirements
-- **13-infrastructure.md** - Deployment and infrastructure
+## Order State Machine
 
-## Before Implementing
+```
+PENDING → CONFIRMED → PREPARING → READY → PICKED → DELIVERED
+                                                  → CANCELLED (from any pre-DELIVERED state)
+```
 
-Always check relevant requirement documents and reference them in:
+Critical: State transitions must be validated — no arbitrary jumps. See `redesign-order-system` proposal.
 
-- Pull request descriptions
-- Commit messages
-- Code comments for non-obvious decisions
+## Payment Methods
+
+- bKash (mobile money — primary)
+- AamarPay (gateway)
+- SSLCommerz (gateway)
+- Cash on Delivery (COD)
+- Wallet (platform credit)
+
+## Commission Model
+
+Per-restaurant commission rate stored in DB. Applied per order, distributed proportionally across items for multi-restaurant orders. See `docs/requirements/08-pricing-and-financials.md`.
+
+## Before Implementing Any Feature
+
+1. Read the relevant requirement doc(s)
+2. Check `openspec/changes/` for existing proposals
+3. Verify multi-tenancy implications
+4. Consider order lifecycle impact (if order-related)
+5. Check pricing/financial impact (if money-related)

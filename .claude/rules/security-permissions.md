@@ -1,36 +1,73 @@
-# Security & Permissions Rule
+# Security & Permissions
 
-All endpoints and features must verify user permissions and tenant context.
+## Authentication Flow
 
-## Security Checklist
+- OTP-based auth (phone) + password login (partner/admin)
+- JWT: access token (15min) + refresh token (7d, httpOnly cookie)
+- Token refresh: single-flight pattern (one refresh promise for concurrent 401s)
+- Hash refresh tokens with SHA256 before storing in DB
+- Passwords: bcrypt hashing
 
-1. **Tenant authorization** - Verify user belongs to requested tenant
-2. **Role-based access** - Check user role for the action (see doc 06)
-3. **Resource ownership** - Verify resource belongs to user's tenant
-4. **Data validation** - Validate all user inputs
-5. **Rate limiting** - Apply rate limits to prevent abuse
+## Authorization Layers (all must pass)
 
-## Permission Model
+1. **Tenant resolution** — Middleware extracts tenant from subdomain (customer) or JWT claim (partner/admin) or `X-Tenant-ID` header (API)
+2. **Authentication** — `authMiddleware.Authenticate` verifies JWT and attaches user to context
+3. **Role check** — `RequireRoles(roles ...sqlc.UserRole)` middleware on route groups
+4. **Resource ownership** — Service layer verifies resource belongs to user's tenant
 
-Reference: `docs/requirements/06-portals-and-roles.md`
+```go
+// CORRECT — full chain
+r.Route("/orders", func(r chi.Router) {
+    r.Use(authMiddleware.Authenticate)
+    r.Use(auth.RequireRoles(sqlc.UserRoleOwner, sqlc.UserRoleManager))
+    r.Post("", orderHandler.CreateOrder)
+})
 
-User roles:
+// In handler — always extract and verify tenant
+t := tenant.FromContext(r.Context())
+if t == nil {
+    respond.Error(w, apperror.NotFound("tenant"))
+    return
+}
+```
 
-- Restaurant Owner/Admin
-- Manager
-- Staff
-- Customer
-- Platform Admin
+## User Roles (from doc 06)
 
-Each role has specific permissions - verify these before implementing.
+| Role | Scope |
+|------|-------|
+| Platform Admin | Cross-tenant, super-admin panel |
+| Restaurant Owner | Tenant-wide, partner portal |
+| Manager | Restaurant-level, partner portal |
+| Staff | Limited ops, partner portal |
+| Customer | Own data only, website |
+| Rider | Assigned deliveries, rider app |
 
-## Common Mistakes to Avoid
+## Security Checklist for Every Endpoint
 
-- Forgetting tenant check
-- Only checking role, not tenant combination
-- Allowing direct resource access by ID without verification
-- Missing validation on input
+- [ ] Tenant middleware applied to route group
+- [ ] Auth middleware applied (unless public endpoint)
+- [ ] Role middleware matches required permission level
+- [ ] Handler extracts `tenant.FromContext()` and checks nil
+- [ ] Handler extracts `auth.UserFromContext()` and checks nil
+- [ ] Service passes `tenant_id` to all DB queries
+- [ ] Input validated with `go-playground/validator` or Zod (frontend)
+- [ ] Rate limiting on sensitive endpoints (OTP, login, password reset)
+
+## Frontend Security
+
+- No sensitive data in localStorage — tokens in httpOnly cookies only
+- `withCredentials: true` on all API calls
+- `secure: true` on cookies in production
+- Zod schema validation on all form inputs before submission
+- Next.js middleware redirects unauthenticated users to `/auth/login`
+
+## Common Mistakes
+
+- Forgetting `tenant_id` in a query (data leak)
+- Checking role but not tenant (cross-tenant privilege escalation)
+- Returning internal error details to client (use `apperror.Internal` which hides internals)
+- Missing rate limit on OTP endpoint (abuse vector)
+- Storing tokens in localStorage (XSS vulnerability)
 
 ---
-
-Path scope: All API endpoints, user-facing features
+Path scope: All API endpoints, middleware, auth code
