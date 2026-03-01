@@ -204,12 +204,24 @@ func (h *Handler) UpdateRestaurant(w http.ResponseWriter, r *http.Request) {
 		MinOrderAmount     pgtype.Numeric `json:"min_order_amount"`
 		AvgPrepTimeMinutes *int32         `json:"avg_prep_time_minutes"`
 		AutoAcceptOrders   *bool          `json:"auto_accept_orders"`
+		IsAvailable        *bool          `json:"is_available"`
 		IsFeatured         *bool          `json:"is_featured"`
 		SortOrder          *int32         `json:"sort_order"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respond.Error(w, apperror.BadRequest("invalid request body"))
 		return
+	}
+
+	// If is_available is provided, update it first via the dedicated query.
+	// Note: availability and the general fields are separate SQL updates (no transaction).
+	// A failure on UpdateRestaurant below will leave is_available already changed; this is
+	// an accepted trade-off given both are idempotent and can be retried independently.
+	if req.IsAvailable != nil {
+		if _, err := h.svc.UpdateAvailability(r.Context(), id, t.ID, *req.IsAvailable); err != nil {
+			respond.Error(w, toAppError(err))
+			return
+		}
 	}
 
 	res, err := h.svc.UpdateRestaurant(r.Context(), id, t.ID, UpdateRestaurantRequest{
