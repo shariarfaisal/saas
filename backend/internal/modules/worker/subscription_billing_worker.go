@@ -38,6 +38,8 @@ func (w *Worker) GenerateSubscriptionInvoices(ctx context.Context) error {
 			continue
 		}
 
+		// Amount defaults to 0; operator updates it based on the tenant's subscription plan.
+		// A future improvement can auto-calculate from the plan's monthly price.
 		pgAmount := pgtype.Numeric{}
 		_ = pgAmount.Scan("0")
 

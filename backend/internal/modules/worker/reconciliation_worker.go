@@ -11,7 +11,7 @@ import (
 
 // ReconcilePayments finds stale processing payments and creates reconciliation alerts.
 func (w *Worker) ReconcilePayments(ctx context.Context) error {
-	staleThreshold := time.Now().Add(-2 * time.Hour)
+	staleThreshold := time.Now().Add(-1 * time.Hour)
 	stale, err := w.q.ListStaleProcessingPayments(ctx, sqlc.ListStaleProcessingPaymentsParams{
 		Before: staleThreshold,
 		Limit:  100,

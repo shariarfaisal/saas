@@ -6,6 +6,7 @@ ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS delivery_managed_by TEXT NOT NU
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS delivery_charge_total NUMERIC(12,2) NOT NULL DEFAULT 0;
 
 -- Tenant billing day
+-- Tenant billing day (1-28; values 29-31 excluded to be safe for all months including February)
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS billing_day INT NOT NULL DEFAULT 1
     CHECK (billing_day BETWEEN 1 AND 28);
 

@@ -105,8 +105,9 @@ func (s *Service) GenerateForRestaurant(ctx context.Context, tenantID, restauran
 	netSales := grossSales.Sub(itemDiscounts).Sub(vendorPromoDiscounts)
 	adjustmentAmount := decimal.Zero
 
-	// net_payable = net_sales - commission_amount - penalty_amount + adjustment_amount + delivery_charge_total
-	// Note: VAT is collected but not deducted from payable (it's the customer's obligation)
+	// net_payable = gross_sales - item_discounts - vendor_promo_discounts - commission_amount - penalty_amount + adjustment_amount
+	// Per design.md: VAT collected is tracked separately; not part of vendor net payable.
+	// delivery_charge_total is retained by the platform when delivery_managed_by = 'platform'.
 	netPayable := netSales.Sub(commissionTotal).Sub(penaltyAmount).Add(adjustmentAmount).Add(deliveryChargeTotal)
 
 	// Get order counts for the period
